@@ -3,6 +3,8 @@ import { requireAuth } from '@/lib/auth';
 import { detectSitesInContainers } from '@/lib/site-detector';
 import { getSiteByContainerId } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     await requireAuth();

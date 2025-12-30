@@ -2,7 +2,7 @@ import Docker from 'dockerode';
 import { ContainerInfo, ContainerStats } from '@/types';
 
 // Initialize dockerode client
-const docker = new Docker({ socketPath: '/var/run/docker.sock' });
+const docker = new Docker({ socketPath: process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock' });
 
 // ============================================
 // CONTAINER LISTING
@@ -25,6 +25,7 @@ export async function listContainers(all: boolean = true): Promise<ContainerInfo
         uptime: container.State === 'running' ? uptime : '-',
         image: container.Image,
         ports: formatPorts(container.Ports),
+        labels: container.Labels,
       };
     });
   } catch (error) {
@@ -211,7 +212,10 @@ function formatPorts(ports: Docker.Port[]): string {
     .join(', ') || '-';
 }
 
-function formatPortsFromInspect(ports: any): string {
+// Type definition for the port mapping object from container inspect
+type PortMap = { [containerPort: string]: { HostIp: string; HostPort: string }[] | null };
+
+function formatPortsFromInspect(ports: PortMap): string {
   if (!ports) return '-';
 
   const portMappings: string[] = [];

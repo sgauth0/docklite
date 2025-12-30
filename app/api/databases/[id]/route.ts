@@ -1,66 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getDatabaseById, deleteDatabase, hasAccess } from '@/lib/db';
-import { removeContainer } from '@/lib/docker';
+import { getDatabaseById } from '@/lib/db';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
-export async function GET(
+const execAsync = promisify(exec);
+
+export const dynamic = 'force-dynamic';
+
+export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireAuth();
     const { id } = await params;
+    const body = await request.json();
 
-    const databaseId = parseInt(id, 10);
-    if (isNaN(databaseId)) {
+    const { username, password } = body;
+
+    if (!username || !password) {
       return NextResponse.json(
-        { error: 'Invalid database ID' },
+        { error: 'Username and password are required' },
         { status: 400 }
-      );
-    }
-
-    const database = getDatabaseById(databaseId);
-    if (!database) {
-      return NextResponse.json(
-        { error: 'Database not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check access
-    if (!hasAccess(user.userId, databaseId, user.isAdmin)) {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
-      );
-    }
-
-    return NextResponse.json({ database });
-  } catch (error: any) {
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    console.error('Error getting database:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const user = await requireAuth();
-    const { id } = await params;
-
-    // Only admin can delete databases
-    if (!user.isAdmin) {
-      return NextResponse.json(
-        { error: 'Forbidden: Admin access required' },
-        { status: 403 }
       );
     }
 
@@ -72,6 +34,7 @@ export async function DELETE(
       );
     }
 
+    // Get database record
     const database = getDatabaseById(databaseId);
     if (!database) {
       return NextResponse.json(
@@ -80,23 +43,44 @@ export async function DELETE(
       );
     }
 
-    // Remove container
+    // Update PostgreSQL user credentials in the container
+    const containerId = database.container_id;
+
+    // Execute SQL commands to update the user
     try {
-      await removeContainer(database.container_id, true);
-    } catch (error) {
-      console.error('Error removing database container:', error);
-      // Continue even if container removal fails
+      // First, try to alter the existing user's password
+      const { stdout, stderr } = await execAsync(
+        `docker exec ${containerId} psql -U postgres -d postgres -c "ALTER USER ${username} WITH PASSWORD '${password}';"`
+      ).catch(async (alterError) => {
+        // If user doesn't exist, create it
+        await execAsync(
+          `docker exec ${containerId} psql -U postgres -d postgres -c "CREATE USER ${username} WITH PASSWORD '${password}';"`
+        );
+        // Grant all privileges on the database
+        await execAsync(
+          `docker exec ${containerId} psql -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE ${database.name} TO ${username};"`
+        );
+        return { stdout: 'User created', stderr: '' };
+      });
+
+      console.log('✓ Database credentials updated:', stdout);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Database credentials updated successfully',
+      });
+    } catch (err: any) {
+      console.error('Error updating database credentials:', err);
+      return NextResponse.json(
+        { error: 'Failed to update credentials: ' + err.message },
+        { status: 500 }
+      );
     }
-
-    // Delete from database (will also delete permissions)
-    deleteDatabase(databaseId);
-
-    return NextResponse.json({ success: true });
   } catch (error: any) {
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('Error deleting database:', error);
+    console.error('Error updating database:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

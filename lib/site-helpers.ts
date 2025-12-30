@@ -1,6 +1,7 @@
 import { getUserById } from './db';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import fs from 'fs/promises';
 
 const execAsync = promisify(exec);
 
@@ -32,17 +33,27 @@ export function getSitePathByUserId(userId: number, domain: string): string {
  */
 export async function createSiteDirectory(username: string, domain: string): Promise<string> {
   const sitePath = getSitePath(username, domain);
+  console.log(`Attempting to create site directory at: ${sitePath}`);
 
   try {
     // Create directory with parents
+    console.log(`Executing: mkdir -p "${sitePath}"`);
     await execAsync(`mkdir -p "${sitePath}"`);
+    console.log(`✓ Successfully created directory.`);
 
-    // Set permissions (755 for directories, www-data ownership for web server access)
-    // Note: Adjust ownership based on your web server user (www-data, nginx, apache, etc.)
+    // Set permissions (755 for directories)
+    console.log(`Executing: chmod 755 "${sitePath}"`);
     await execAsync(`chmod 755 "${sitePath}"`);
-    await execAsync(`chown -R $USER:$USER "${sitePath}"`);
+    console.log(`✓ Successfully set directory permissions.`);
 
-    console.log(`✓ Created site directory: ${sitePath}`);
+    // Set ownership to the current user. NOTE: For a multi-user setup,
+    // this should be adjusted, perhaps to a shared group like 'www-data'.
+    const currentUser = process.env.USER || 'www-data';
+    console.log(`Executing: chown -R ${currentUser}:${currentUser} "${sitePath}"`);
+    await execAsync(`chown -R ${currentUser}:${currentUser} "${sitePath}"`);
+    console.log(`✓ Successfully changed directory ownership.`);
+
+    console.log(`✓ Site directory setup complete: ${sitePath}`);
     return sitePath;
   } catch (error) {
     console.error(`Error creating site directory ${sitePath}:`, error);
@@ -79,7 +90,7 @@ export async function createDefaultIndexFile(sitePath: string, domain: string, t
     </div>
 </body>
 </html>`;
-      await execAsync(`cat > "${sitePath}/index.html" << 'EOF'\n${content}\nEOF`);
+      await fs.writeFile(`${sitePath}/index.html`, content);
       break;
 
     case 'php':
@@ -103,7 +114,7 @@ export async function createDefaultIndexFile(sitePath: string, domain: string, t
     <p>Site Path: <code>${sitePath}</code></p>
 </body>
 </html>`;
-      await execAsync(`cat > "${sitePath}/index.php" << 'EOF'\n${content}\nEOF`);
+      await fs.writeFile(`${sitePath}/index.php`, content);
       break;
 
     case 'node':
@@ -117,7 +128,7 @@ export async function createDefaultIndexFile(sitePath: string, domain: string, t
           start: 'node index.js'
         }
       };
-      await execAsync(`cat > "${sitePath}/package.json" << 'EOF'\n${JSON.stringify(packageJson, null, 2)}\nEOF`);
+      await fs.writeFile(`${sitePath}/package.json`, JSON.stringify(packageJson, null, 2));
 
       // Create index.js
       content = `const http = require('http');
@@ -144,7 +155,7 @@ const server = http.createServer((req, res) => {
 server.listen(port, hostname, () => {
   console.log(\`Server running at http://\${hostname}:\${port}/\`);
 });`;
-      await execAsync(`cat > "${sitePath}/index.js" << 'EOF'\n${content}\nEOF`);
+      await fs.writeFile(`${sitePath}/index.js`, content);
       break;
   }
 

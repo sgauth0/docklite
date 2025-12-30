@@ -1,0 +1,189 @@
+
+'use client';
+
+import { useEffect, useState } from 'react';
+
+interface TableInfo {
+  name: string;
+  schema: any[];
+  data: any[];
+}
+
+export default function DbViewer() {
+  const [dbInfo, setDbInfo] = useState<TableInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    async function fetchDbInfo() {
+      try {
+        const res = await fetch('/api/db');
+        if (!res.ok) {
+          throw new Error('Failed to fetch database info');
+        }
+        const data = await res.json();
+        setDbInfo(data.dbInfo);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchDbInfo();
+  }, []);
+
+  const getSafeValue = (val: any) => {
+    if (val === null || val === undefined || val === '') return '-';
+    if (typeof val === 'string' && val.length > 50) return val.substring(0, 50) + '...';
+    return String(val);
+  };
+
+  return (
+    <>
+      {/* Clickable Card */}
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className="w-full mb-6 card-vapor p-6 rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 transition-all hover:scale-[1.02] text-left"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold neon-text mb-2" style={{ color: 'var(--neon-cyan)' }}>
+              🗄️ DockLite System Database
+            </h2>
+            <p className="text-xs font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+              Click to inspect internal database structure
+            </p>
+          </div>
+          <div className="text-3xl">👁️</div>
+        </div>
+      </button>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0, 0, 0, 0.8)' }}
+          onClick={() => setIsModalOpen(false)}
+        >
+          <div
+            className="card-vapor rounded-xl border-2 border-cyan-500 max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-6 border-b border-purple-500/30 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold neon-text" style={{ color: 'var(--neon-cyan)' }}>
+                  🗄️ DockLite Database Inspector
+                </h2>
+                <p className="text-xs font-mono mt-1" style={{ color: 'var(--text-secondary)' }}>
+                  Internal SQLite database structure
+                </p>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 rounded-lg font-bold transition-all hover:scale-105"
+                style={{
+                  background: 'linear-gradient(135deg, #ff6b6b 0%, var(--neon-pink) 100%)',
+                  color: 'white',
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {loading && (
+                <div className="text-center py-12">
+                  <div className="text-2xl font-bold neon-text animate-pulse" style={{ color: 'var(--neon-cyan)' }}>
+                    ⟳ Loading...
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="card-vapor p-4 rounded-lg border-2" style={{ borderColor: 'rgba(255, 107, 107, 0.5)' }}>
+                  <p className="font-bold" style={{ color: '#ff6b6b' }}>
+                    ❌ Error: {error}
+                  </p>
+                </div>
+              )}
+
+              {!loading && !error && (
+                <div className="space-y-6">
+                  {dbInfo.map(table => (
+                    <div key={table.name} className="card-vapor p-6 rounded-xl border border-purple-500/30">
+                      <h3 className="text-xl font-bold neon-text mb-4 flex items-center gap-2" style={{ color: 'var(--neon-pink)' }}>
+                        <span>📊</span>
+                        <span>{table.name}</span>
+                        <span className="text-xs font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                          ({table.data.length} rows)
+                        </span>
+                      </h3>
+
+                      {/* Data Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b-2" style={{ borderColor: 'rgba(181, 55, 242, 0.3)' }}>
+                              {table.schema
+                                .filter(col => !['password_hash'].includes(col.name)) // Hide sensitive fields
+                                .map((col: any) => (
+                                  <th
+                                    key={col.name}
+                                    className="px-3 py-2 text-left font-bold"
+                                    style={{ color: 'var(--neon-purple)' }}
+                                  >
+                                    {col.name}
+                                    {col.pk && <span className="ml-1 text-xs">🔑</span>}
+                                  </th>
+                                ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {table.data.length === 0 ? (
+                              <tr>
+                                <td
+                                  colSpan={table.schema.length}
+                                  className="px-3 py-4 text-center opacity-50"
+                                  style={{ color: 'var(--text-secondary)' }}
+                                >
+                                  No data
+                                </td>
+                              </tr>
+                            ) : (
+                              table.data.map((row: any, i: number) => (
+                                <tr
+                                  key={i}
+                                  className="border-b transition-colors hover:bg-purple-900/20"
+                                  style={{ borderColor: 'rgba(181, 55, 242, 0.1)' }}
+                                >
+                                  {table.schema
+                                    .filter(col => !['password_hash'].includes(col.name))
+                                    .map((col: any) => (
+                                      <td
+                                        key={col.name}
+                                        className="px-3 py-2 font-mono text-xs"
+                                        style={{ color: 'var(--text-primary)' }}
+                                      >
+                                        {getSafeValue(row[col.name])}
+                                      </td>
+                                    ))}
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

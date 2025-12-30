@@ -2,63 +2,45 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Site, ContainerInfo } from '@/types';
+import { ContainerInfo, Folder } from '@/types';
 import ContainerCard from './components/ContainerCard';
-import Folder from './components/Folder';
+import ContainerDetailsModal from './components/ContainerDetailsModal';
+import DeleteSiteModal from './components/DeleteSiteModal';
+import AllContainersModal from './components/AllContainersModal';
+import FolderSection from './components/FolderSection';
+import SkeletonLoader from './components/SkeletonLoader';
+import { useToast } from '@/lib/hooks/useToast';
 
-interface FolderData {
-  id: string;
-  name: string;
-  containerIds: string[];
+interface FolderWithContainers {
+  folder: Folder;
+  containers: ContainerInfo[];
 }
 
+type ContainerType = 'all' | 'sites' | 'databases' | 'other';
+
 export default function DashboardPage() {
-  const [sites, setSites] = useState<Site[]>([]);
-  const [containers, setContainers] = useState<ContainerInfo[]>([]);
-  const [folders, setFolders] = useState<FolderData[]>([]);
+  const [foldersData, setFoldersData] = useState<FolderWithContainers[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [draggedContainerId, setDraggedContainerId] = useState<string | null>(null);
-  const [newFolderName, setNewFolderName] = useState('');
-
-  // Load folders from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('docklite-folders');
-    if (saved) {
-      try {
-        setFolders(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to load folders:', e);
-      }
-    }
-  }, []);
-
-  // Save folders to localStorage
-  useEffect(() => {
-    if (folders.length > 0 || localStorage.getItem('docklite-folders')) {
-      localStorage.setItem('docklite-folders', JSON.stringify(folders));
-    }
-  }, [folders]);
+  const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
+  const [selectedContainerName, setSelectedContainerName] = useState<string>('');
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [siteToDelete, setSiteToDelete] = useState<{ id: number; domain: string } | null>(null);
+  const [showAllContainersModal, setShowAllContainersModal] = useState(false);
+  const [filterType, setFilterType] = useState<ContainerType>('all');
+  const toast = useToast();
 
   const fetchData = async () => {
     try {
-      const [sitesRes, containersRes] = await Promise.all([
-        fetch('/api/sites'),
-        fetch('/api/containers'),
-      ]);
-
-      if (!sitesRes.ok || !containersRes.ok) {
+      const res = await fetch('/api/containers');
+      if (!res.ok) {
         throw new Error('Failed to fetch data');
       }
-
-      const sitesData = await sitesRes.json();
-      const containersData = await containersRes.json();
-
-      setSites(sitesData.sites);
-      setContainers(containersData.containers);
-      setLoading(false);
+      const data = await res.json();
+      setFoldersData(data.folders || []);
     } catch (err) {
-      setError('Failed to load sites');
+      setError('Failed to load containers');
+    } finally {
       setLoading(false);
     }
   };
@@ -74,173 +56,253 @@ export default function DashboardPage() {
       const res = await fetch(`/api/containers/${containerId}/${action}`, {
         method: 'POST',
       });
-
-      if (!res.ok) {
-        throw new Error(`Failed to ${action} container`);
-      }
-
+      if (!res.ok) throw new Error(`Failed to ${action} container`);
+      toast.success(`Container ${action}ed successfully!`);
       fetchData();
-    } catch (err) {
-      alert(`Error: ${err}`);
+    } catch (err: any) {
+      toast.error(`Error: ${err.message || err}`);
     }
   };
 
-  const handleDragStart = (e: React.DragEvent, containerId: string) => {
-    setDraggedContainerId(containerId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDropOnFolder = (e: React.DragEvent, folderId: string) => {
-    e.preventDefault();
-    if (!draggedContainerId) return;
-
-    // Remove from all folders first
-    const updatedFolders = folders.map(folder => ({
-      ...folder,
-      containerIds: folder.containerIds.filter(id => id !== draggedContainerId),
-    }));
-
-    // Add to target folder
-    const targetFolder = updatedFolders.find(f => f.id === folderId);
-    if (targetFolder && !targetFolder.containerIds.includes(draggedContainerId)) {
-      targetFolder.containerIds.push(draggedContainerId);
+  const getContainerType = (container: ContainerInfo): 'site' | 'database' | 'other' => {
+    const labels = container.labels || {};
+    if (labels['docklite.type'] === 'static' || labels['docklite.type'] === 'php' || labels['docklite.type'] === 'node') {
+      return 'site';
     }
-
-    setFolders(updatedFolders);
-    setDraggedContainerId(null);
+    if (labels['docklite.type'] === 'postgres' || labels['docklite.database']) {
+      return 'database';
+    }
+    return 'other';
   };
 
-  const createFolder = () => {
-    if (!newFolderName.trim()) return;
-
-    const newFolder: FolderData = {
-      id: `folder-${Date.now()}`,
-      name: newFolderName.trim(),
-      containerIds: [],
-    };
-
-    setFolders([...folders, newFolder]);
-    setNewFolderName('');
+  const getContainerBadge = (container: ContainerInfo): string => {
+    const type = getContainerType(container);
+    if (type === 'site') return '🌸';
+    if (type === 'database') return '💾';
+    return '⚡';
   };
 
-  const renameFolder = (folderId: string, newName: string) => {
-    setFolders(folders.map(f =>
-      f.id === folderId ? { ...f, name: newName } : f
-    ));
+  const filterContainers = (containers: ContainerInfo[]): ContainerInfo[] => {
+    if (filterType === 'all') return containers;
+
+    return containers.filter(container => {
+      const type = getContainerType(container);
+      if (filterType === 'sites') return type === 'site';
+      if (filterType === 'databases') return type === 'database';
+      if (filterType === 'other') return type === 'other';
+      return true;
+    });
   };
 
-  const deleteFolder = (folderId: string) => {
-    setFolders(folders.filter(f => f.id !== folderId));
+  const totalContainers = foldersData.reduce((acc, f) => acc + f.containers.length, 0);
+  const filteredFolders = foldersData.map(f => ({
+    ...f,
+    containers: filterContainers(f.containers)
+  })).filter(f => f.containers.length > 0);
+
+  const handleDeleteClick = (siteId: number, domain: string) => {
+    setSiteToDelete({ id: siteId, domain });
+    setDeleteModalOpen(true);
   };
 
-  // Get containers not in any folder
-  const allFolderContainerIds = new Set(folders.flatMap(f => f.containerIds));
-  const unfolderedContainers = containers.filter(c => !allFolderContainerIds.has(c.id));
+  const handleDeleteConfirm = async () => {
+    if (!siteToDelete) return;
+
+    try {
+      const res = await fetch(`/api/sites/${siteToDelete.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete site');
+      toast.success(`Site "${siteToDelete.domain}" deleted successfully!`);
+      setDeleteModalOpen(false);
+      setSiteToDelete(null);
+      fetchData();
+    } catch (err: any) {
+      toast.error(`Error: ${err.message || err}`);
+      setDeleteModalOpen(false);
+      setSiteToDelete(null);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false);
+    setSiteToDelete(null);
+  };
+
+  const handleContainerDrop = async (containerId: string, targetFolderId: number) => {
+    try {
+      // Add container to target folder
+      const res = await fetch(`/api/folders/${targetFolderId}/containers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ containerId }),
+      });
+
+      if (!res.ok) throw new Error('Failed to move container to folder');
+
+      toast.success('Container moved successfully!');
+      fetchData(); // Refresh to show new organization
+    } catch (err: any) {
+      toast.error(`Error: ${err.message || err}`);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="text-2xl font-bold neon-text" style={{ color: 'var(--neon-cyan)' }}>
-          ⟳ Loading...
+      <div className="max-w-[1400px] mx-auto">
+        <div className="mb-6">
+          <h1 className="text-3xl lg:text-4xl font-bold neon-text mb-2" style={{ color: 'var(--neon-cyan)' }}>
+            📦 Containers
+          </h1>
+          <p className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
+            ▶ LOADING... ◀
+          </p>
         </div>
+        <SkeletonLoader type="card" count={6} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <div className="text-xl font-bold" style={{ color: '#ff6b6b' }}>
-          ❌ {error}
+      <div className="text-center py-16">
+        <div className="mb-8">
+          <div className="text-6xl mb-4 animate-pulse">⚠️</div>
+          <div className="text-xl font-bold mb-2" style={{ color: '#ff6b6b' }}>
+            System Error Detected
+          </div>
+          <button onClick={fetchData} className="btn-neon px-6 py-3 font-bold">
+            🔄 Retry Connection
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="sm:flex sm:items-center sm:justify-between mb-6">
-        <h1 className="text-3xl font-bold neon-text" style={{ color: 'var(--neon-cyan)' }}>
-          📦 Docker Containers
-        </h1>
-        <Link
-          href="/sites/new"
-          className="mt-4 sm:mt-0 btn-neon inline-flex items-center"
-        >
-          ✨ Create Site
-        </Link>
+    <div className="max-w-[1400px] mx-auto">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
+        <div>
+          <h1 className="text-3xl lg:text-4xl font-bold neon-text mb-2" style={{ color: 'var(--neon-cyan)' }}>
+            📦 Containers
+          </h1>
+          <div className="flex items-center gap-3">
+            <p className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
+              ▶ SYSTEM STATUS: ONLINE ◀
+            </p>
+            <span className="text-xs font-mono px-2 py-0.5 rounded-full" style={{
+              background: 'rgba(57, 255, 20, 0.2)',
+              color: 'var(--neon-green)',
+              border: '1px solid var(--neon-green)'
+            }}>
+              {totalContainers} containers
+            </span>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowAllContainersModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all hover:scale-105"
+            style={{
+              background: 'linear-gradient(135deg, var(--neon-purple) 0%, var(--neon-cyan) 100%)',
+              color: 'white',
+              boxShadow: '0 0 12px rgba(181, 55, 242, 0.4)',
+            }}
+          >
+            🐳 All Containers
+          </button>
+          <Link
+            href="/sites/new"
+            className="btn-neon inline-flex items-center gap-2"
+          >
+            ✨ Create Site
+          </Link>
+        </div>
       </div>
 
-      {/* Create Folder Input */}
-      <div className="mb-6 card-vapor p-4 rounded-xl flex gap-3 items-center">
-        <span className="text-2xl">📁</span>
-        <input
-          type="text"
-          value={newFolderName}
-          onChange={(e) => setNewFolderName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && createFolder()}
-          placeholder="Create new folder..."
-          className="input-vapor flex-1"
-        />
-        <button
-          onClick={createFolder}
-          className="btn-neon"
-          disabled={!newFolderName.trim()}
+      {/* Filter Dropdown */}
+      <div className="mb-6">
+        <select
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value as ContainerType)}
+          className="input-vapor px-4 py-2 text-sm font-bold"
+          style={{
+            minWidth: '200px',
+            background: 'rgba(15, 5, 30, 0.7)',
+            border: '2px solid var(--neon-cyan)',
+          }}
         >
-          ➕ Create Folder
-        </button>
+          <option value="all">📦 All Containers</option>
+          <option value="sites">🌸 Sites Only</option>
+          <option value="databases">💾 Databases Only</option>
+          <option value="other">⚡ Other Containers</option>
+        </select>
       </div>
 
-      {containers.length === 0 ? (
-        <div className="mt-8 text-center py-12 card-vapor">
-          <p className="text-lg font-bold" style={{ color: 'var(--neon-pink)' }}>
-            📭 No containers found.
+      {totalContainers === 0 ? (
+        <div className="mt-12 text-center py-16 card-vapor max-w-2xl mx-auto">
+          <p className="text-xl font-bold neon-text mb-4" style={{ color: 'var(--neon-pink)' }}>
+            No containers detected
           </p>
+          <Link href="/sites/new" className="btn-neon inline-flex items-center gap-2">
+            ✨ Create Your First Site
+          </Link>
+        </div>
+      ) : filteredFolders.length === 0 ? (
+        <div className="mt-12 text-center py-16 card-vapor max-w-2xl mx-auto">
+          <p className="text-xl font-bold neon-text mb-4" style={{ color: 'var(--neon-pink)' }}>
+            No containers match this filter
+          </p>
+          <button
+            onClick={() => setFilterType('all')}
+            className="btn-neon inline-flex items-center gap-2"
+          >
+            🔄 Show All
+          </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-          {/* Folders */}
-          {folders.map(folder => (
-            <Folder
+        <div className="space-y-8">
+          {filteredFolders.map(({ folder, containers }) => (
+            <FolderSection
               key={folder.id}
-              id={folder.id}
-              name={folder.name}
-              containerIds={folder.containerIds}
-              allContainers={containers}
-              sites={sites}
+              folder={folder}
+              containers={containers}
+              getContainerBadge={getContainerBadge}
               onAction={handleAction}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDrop={handleDropOnFolder}
-              onRename={renameFolder}
-              onDelete={deleteFolder}
+              onViewDetails={(id, name) => {
+                setSelectedContainerId(id);
+                setSelectedContainerName(name);
+              }}
+              onDelete={handleDeleteClick}
+              onRefresh={fetchData}
+              onContainerDrop={handleContainerDrop}
             />
           ))}
-
-          {/* Unfoldered Containers */}
-          {unfolderedContainers.map((container) => {
-            const site = sites.find(s => s.container_id === container.id);
-            return (
-              <ContainerCard
-                key={container.id}
-                container={container}
-                siteId={site?.id}
-                onAction={handleAction}
-                onDragStart={handleDragStart}
-              />
-            );
-          })}
         </div>
       )}
 
-      <div className="mt-6 text-center text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
-        💡 Drag containers into folders to organize them ✨
-      </div>
+      {selectedContainerId && (
+        <ContainerDetailsModal
+          containerId={selectedContainerId}
+          containerName={selectedContainerName}
+          onClose={() => {
+            setSelectedContainerId(null);
+            setSelectedContainerName('');
+          }}
+        />
+      )}
+
+      {deleteModalOpen && siteToDelete && (
+        <DeleteSiteModal
+          siteDomain={siteToDelete.domain}
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
+        />
+      )}
+
+      {showAllContainersModal && (
+        <AllContainersModal onClose={() => setShowAllContainersModal(false)} />
+      )}
+
+      <toast.ToastContainer />
     </div>
   );
 }

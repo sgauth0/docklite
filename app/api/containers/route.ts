@@ -1,29 +1,65 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { listContainers } from '@/lib/docker';
-import { getSitesByUser } from '@/lib/db';
+import { getFoldersByUser, getContainersByFolder } from '@/lib/db';
+import { ContainerInfo, Folder } from '@/types';
+
+export const dynamic = 'force-dynamic';
+
+export interface FolderWithContainers {
+  folder: Folder;
+  containers: ContainerInfo[];
+}
 
 export async function GET() {
   try {
     const user = await requireAuth();
 
-    // Get all containers
-    const allContainers = await listContainers(true);
+    // Get user's folders
+    const folders = getFoldersByUser(user.userId);
 
-    // If admin, return all containers
-    if (user.isAdmin) {
-      return NextResponse.json({ containers: allContainers });
+    // Get all DockLite-managed containers
+    const allContainers = await listContainers(true); // true = only managed containers
+
+    // Build folder structure with containers
+    const foldersWithContainers: FolderWithContainers[] = [];
+    const assignedContainerIds = new Set<string>();
+
+    for (const folder of folders) {
+      // Get container IDs assigned to this folder
+      const folderContainerIds = getContainersByFolder(folder.id);
+
+      // Find the actual container objects
+      const folderContainers = allContainers.filter(c =>
+        folderContainerIds.includes(c.id)
+      );
+
+      // Track which containers are assigned
+      folderContainers.forEach(c => assignedContainerIds.add(c.id));
+
+      foldersWithContainers.push({
+        folder,
+        containers: folderContainers,
+      });
     }
 
-    // For regular users, filter to only their sites
-    const userSites = getSitesByUser(user.userId, false);
-    const userContainerIds = new Set(userSites.map(site => site.container_id));
-
-    const userContainers = allContainers.filter(container =>
-      userContainerIds.has(container.id)
+    // Find unassigned containers (containers not in any folder)
+    const unassignedContainers = allContainers.filter(c =>
+      !assignedContainerIds.has(c.id)
     );
 
-    return NextResponse.json({ containers: userContainers });
+    // Add unassigned containers to Default folder if it exists
+    const defaultFolder = foldersWithContainers.find(f => f.folder.name === 'Default');
+    if (defaultFolder && unassignedContainers.length > 0) {
+      // Add unassigned containers to Default folder display
+      defaultFolder.containers.push(...unassignedContainers);
+    }
+
+    return NextResponse.json({
+      folders: foldersWithContainers,
+      totalContainers: allContainers.length,
+    });
+
   } catch (error: any) {
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

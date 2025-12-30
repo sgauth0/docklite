@@ -1,0 +1,469 @@
+
+> docklite@0.1.0 dev
+> next dev -H 0.0.0.0
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Network:      http://0.0.0.0:3000
+  - Environments: .env.local, .env
+
+ ✓ Starting...
+ ✓ Ready in 1461ms
+ ○ Compiling / ...
+ ✓ Compiled / in 3.7s (538 modules)
+ GET / 307 in 4167ms
+ ✓ Compiled in 413ms (266 modules)
+ GET / 200 in 58ms
+ ⚠ Cross origin request detected from 74.208.249.126 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+ ✓ Compiled /api/files in 325ms (306 modules)
+ ✓ Compiled (309 modules)
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 672ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 656ms
+ GET /api/containers 200 in 713ms
+ GET /api/containers 200 in 740ms
+ GET /api/containers 200 in 65ms
+ ✓ Compiled /server in 340ms (567 modules)
+ ✓ Compiled /api/server/stats in 121ms (316 modules)
+ GET /api/server/stats 200 in 186ms
+ GET /api/server/stats 200 in 165ms
+ GET /api/containers 200 in 72ms
+ GET /api/containers 200 in 73ms
+ ✓ Compiled /sites in 373ms (578 modules)
+ GET /api/containers 200 in 71ms
+ GET /api/containers 200 in 65ms
+ ✓ Compiled /api/ssl/status in 106ms (325 modules)
+ GET /api/ssl/status 200 in 174ms
+ GET /api/ssl/status 200 in 207ms
+ ✓ Compiled /databases in 220ms (590 modules)
+ ✓ Compiled /api/databases in 112ms (332 modules)
+ ✓ Compiled (335 modules)
+ GET /api/db 200 in 236ms
+ GET /api/db 200 in 303ms
+ GET /api/databases 200 in 292ms
+ GET /api/databases 200 in 224ms
+ GET /api/containers 200 in 78ms
+ GET /api/containers 200 in 80ms
+ GET /api/ssl/status 200 in 84ms
+ GET /api/ssl/status 200 in 85ms
+ GET /api/server/stats 200 in 37ms
+ GET /api/server/stats 200 in 40ms
+ GET /api/server/stats 200 in 48ms
+ GET /api/server/stats 200 in 37ms
+ GET /api/server/stats 200 in 31ms
+ GET /api/server/stats 200 in 33ms
+ GET /api/server/stats 200 in 31ms
+ GET /api/server/stats 200 in 38ms
+ GET /api/server/stats 200 in 38ms
+ GET /api/server/stats 200 in 34ms
+ GET /api/server/stats 200 in 28ms
+ GET /api/server/stats 200 in 34ms
+ GET /api/server/stats 200 in 29ms
+ GET /api/server/stats 200 in 34ms
+ GET /api/server/stats 200 in 37ms
+ GET /api/server/stats 200 in 34ms
+ ✓ Compiled /users in 335ms (578 modules)
+ ✓ Compiled /api/auth/me in 191ms (322 modules)
+ ✓ Compiled (324 modules)
+ GET /api/users 200 in 283ms
+ GET /api/users 200 in 347ms
+ GET /api/auth/me 200 in 343ms
+ GET /api/auth/me 200 in 284ms
+ ✓ Compiled /users/new in 197ms (592 modules)
+ POST /api/users 201 in 85ms
+ GET /api/users 200 in 13ms
+ GET /api/auth/me 200 in 19ms
+ GET /api/users 200 in 24ms
+ GET /api/auth/me 200 in 23ms
+ ✓ Compiled /api/auth/logout in 123ms (330 modules)
+ POST /api/auth/logout 200 in 153ms
+ ✓ Compiled /login in 283ms (600 modules)
+ GET /login 200 in 386ms
+ ✓ Compiled /api/auth/login in 114ms (336 modules)
+ POST /api/auth/login 200 in 215ms
+ GET / 200 in 85ms
+ ✓ Compiled /api/containers in 127ms (339 modules)
+ ✓ Compiled (341 modules)
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 273ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 295ms
+ GET /api/containers 200 in 327ms
+ GET /api/containers 200 in 355ms
+ ✓ Compiled /sites in 278ms (346 modules)
+ GET /api/containers 200 in 80ms
+ GET /api/containers 200 in 72ms
+ ✓ Compiled /api/ssl/status in 141ms (350 modules)
+ GET /api/ssl/status 200 in 251ms
+ GET /api/ssl/status 200 in 271ms
+ GET /api/containers 200 in 65ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 74ms
+ GET /api/containers 200 in 66ms
+ GET /api/containers 200 in 69ms
+ GET /api/containers 200 in 205ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 71ms
+ GET /api/containers 200 in 74ms
+ GET /api/containers 200 in 74ms
+ GET /api/containers 200 in 63ms
+ GET /api/containers 200 in 81ms
+ GET /api/containers 200 in 65ms
+ GET /api/containers 200 in 66ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 65ms
+ GET /api/containers 200 in 69ms
+ GET /api/containers 200 in 65ms
+ GET /api/containers 200 in 64ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 74ms
+ GET /api/containers 200 in 66ms
+ GET /api/containers 200 in 72ms
+ GET /api/containers 200 in 64ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 66ms
+ GET /api/ssl/status 200 in 86ms
+ GET /api/containers 200 in 72ms
+ GET /api/containers 200 in 62ms
+ GET /api/containers 200 in 66ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 75ms
+ GET /api/containers 200 in 64ms
+ GET /api/containers 200 in 64ms
+ GET /api/containers 200 in 63ms
+ ✓ Compiled in 644ms (603 modules)
+ GET /api/containers 200 in 79ms
+ GET /api/containers 200 in 68ms
+ ✓ Compiled in 187ms (280 modules)
+ GET /api/containers 200 in 80ms
+ GET /api/containers 200 in 68ms
+ ✓ Compiled in 461ms (603 modules)
+ ✓ Compiled /api/files in 236ms (326 modules)
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 403 in 262ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 403 in 281ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 71ms
+ ✓ Compiled in 410ms (606 modules)
+ GET /api/containers 200 in 71ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 66ms
+ GET /api/containers 200 in 69ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 72ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 66ms
+ GET /api/containers 200 in 72ms
+ GET /api/containers 200 in 65ms
+ GET /api/containers 200 in 73ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 63ms
+ GET /api/containers 200 in 71ms
+ GET /api/containers 200 in 70ms
+ ✓ Compiled /api/ssl/status in 291ms (327 modules)
+ GET /api/ssl/status 200 in 406ms
+ GET /api/ssl/status 200 in 425ms
+ GET /api/containers 200 in 72ms
+ GET /api/containers 200 in 69ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 71ms
+ GET /api/containers 200 in 63ms
+ GET /api/containers 200 in 79ms
+ GET /api/containers 200 in 66ms
+ GET /api/containers 200 in 73ms
+ ✓ Compiled in 504ms (603 modules)
+ ✓ Compiled /api/files in 95ms (326 modules)
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Ftestuser 404 in 135ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Ftestuser 404 in 15ms
+ GET /api/containers 200 in 72ms
+ GET /api/containers 200 in 76ms
+ GET /api/containers 200 in 65ms
+ GET /api/containers 200 in 64ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 64ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 65ms
+ GET /api/containers 200 in 62ms
+ GET /api/containers 200 in 68ms
+ ✓ Compiled in 275ms (280 modules)
+ GET /api/containers 200 in 69ms
+ GET /api/containers 200 in 66ms
+ GET /api/containers 200 in 74ms
+ ✓ Compiled in 176ms (280 modules)
+ ✓ Compiled in 221ms (280 modules)
+ GET /api/containers 200 in 73ms
+ ✓ Compiled in 197ms (280 modules)
+ GET /api/containers 200 in 71ms
+ ✓ Compiled in 191ms (280 modules)
+ GET /api/containers 200 in 64ms
+ GET /api/containers 200 in 63ms
+ ✓ Compiled in 671ms (603 modules)
+ GET /api/containers 200 in 73ms
+ ✓ Compiled in 320ms (603 modules)
+ ✓ Compiled in 312ms (603 modules)
+ GET /api/containers 200 in 75ms
+ ✓ Compiled in 288ms (603 modules)
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 68ms
+ ✓ Compiled /api/ssl/status in 184ms (327 modules)
+ GET /api/ssl/status 200 in 298ms
+ GET /api/containers 200 in 64ms
+ GET /api/containers 200 in 71ms
+ GET /api/containers 200 in 75ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 81ms
+ GET /api/containers 200 in 75ms
+ GET /api/containers 200 in 76ms
+ GET /api/containers 200 in 76ms
+ GET /api/containers 200 in 71ms
+ GET /api/containers 200 in 75ms
+ GET /api/containers 200 in 65ms
+ GET /api/containers 200 in 74ms
+ GET /api/containers 200 in 74ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 84ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 80ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 73ms
+ GET /api/containers 200 in 73ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 75ms
+ GET /api/containers 200 in 78ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 74ms
+ GET /api/containers 200 in 65ms
+ GET /api/containers 200 in 73ms
+ GET /api/containers 200 in 68ms
+ GET /api/ssl/status 200 in 75ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 73ms
+ GET /api/containers 200 in 73ms
+ GET /api/ssl/status 200 in 97ms
+ GET /api/ssl/status 200 in 85ms
+ ○ Compiling /sites/new ...
+ ✓ Compiled /sites/new in 525ms (599 modules)
+ ✓ Compiled /api/auth/me in 169ms (333 modules)
+ GET /api/auth/me 200 in 210ms
+ GET /api/auth/me 200 in 226ms
+ ✓ Compiled /server in 190ms (333 modules)
+ ✓ Compiled /api/server/stats in 115ms (336 modules)
+ GET /api/server/stats 200 in 186ms
+ GET /api/server/stats 200 in 133ms
+ GET /api/containers 200 in 100ms
+ GET /api/containers 200 in 97ms
+ GET /api/ssl/status 200 in 85ms
+ GET /api/ssl/status 200 in 95ms
+ ✓ Compiled /databases in 134ms (337 modules)
+ ✓ Compiled /api/databases in 135ms (339 modules)
+ ✓ Compiled (342 modules)
+ GET /api/db 401 in 234ms
+ GET /api/db 401 in 304ms
+ GET /api/databases 200 in 290ms
+ GET /api/databases 200 in 241ms
+ GET /api/containers 200 in 73ms
+ GET /api/containers 200 in 86ms
+ GET /api/ssl/status 200 in 91ms
+ GET /api/ssl/status 200 in 115ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 76ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 71ms
+Error: Failed to find Server Action "x". This request might be from an older or newer deployment. 
+    at rC (/home/docklite/node_modules/next/dist/compiled/next-server/app-page.runtime.dev.js:40:1694)
+    at rk (/home/docklite/node_modules/next/dist/compiled/next-server/app-page.runtime.dev.js:38:6522)
+    at ne (/home/docklite/node_modules/next/dist/compiled/next-server/app-page.runtime.dev.js:42:1262)
+    at /home/docklite/node_modules/next/dist/compiled/next-server/app-page.runtime.dev.js:43:726
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_hooks:91:14)
+    at Object.wrap (/home/docklite/node_modules/next/dist/compiled/next-server/app-page.runtime.dev.js:36:17827)
+    at /home/docklite/node_modules/next/dist/compiled/next-server/app-page.runtime.dev.js:43:616
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_hooks:91:14)
+    at Object.wrap (/home/docklite/node_modules/next/dist/compiled/next-server/app-page.runtime.dev.js:36:16929)
+    at nt (/home/docklite/node_modules/next/dist/compiled/next-server/app-page.runtime.dev.js:43:543)
+    at nb.render (/home/docklite/node_modules/next/dist/compiled/next-server/app-page.runtime.dev.js:43:4699)
+    at doRender (/home/docklite/node_modules/next/dist/server/base-server.js:1427:44)
+    at cacheEntry.responseCache.get.routeKind (/home/docklite/node_modules/next/dist/server/base-server.js:1588:34)
+    at ResponseCache.get (/home/docklite/node_modules/next/dist/server/response-cache/index.js:49:26)
+    at DevServer.renderToResponseWithComponentsImpl (/home/docklite/node_modules/next/dist/server/base-server.js:1496:53)
+ POST / 200 in 109ms
+ GET /api/containers 200 in 69ms
+ GET /api/containers 200 in 82ms
+ GET /api/containers 200 in 69ms
+ GET /api/containers 200 in 77ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 86ms
+ GET /api/containers 200 in 77ms
+ GET /api/containers 200 in 72ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 77ms
+ GET /api/containers 200 in 75ms
+ GET /api/containers 200 in 82ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 73ms
+ GET /api/containers 200 in 80ms
+ GET /api/containers 200 in 69ms
+ GET /api/containers 200 in 69ms
+ GET /api/containers 200 in 68ms
+ GET /api/containers 200 in 66ms
+ GET /api/containers 200 in 81ms
+ GET /api/containers 200 in 67ms
+ ✓ Compiled in 681ms (606 modules)
+ ✓ Compiled /api/ssl/status in 117ms (328 modules)
+ GET /api/containers 200 in 320ms
+ GET /api/ssl/status 200 in 353ms
+ ✓ Compiled in 327ms (610 modules)
+ GET /api/containers 200 in 81ms
+ ✓ Compiled in 471ms (612 modules)
+ GET /api/containers 200 in 77ms
+ GET /api/containers 200 in 75ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 73ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 79ms
+ GET /api/containers 200 in 88ms
+ GET /api/containers 200 in 71ms
+ GET /api/containers 200 in 67ms
+ ✓ Compiled /api/databases in 279ms (327 modules)
+ ✓ Compiled (330 modules)
+ GET /api/db 401 in 424ms
+ GET /api/db 401 in 500ms
+ GET /api/databases 200 in 422ms
+ GET /api/databases 200 in 417ms
+ ✓ Compiled /api/auth/logout in 158ms (332 modules)
+ POST /api/auth/logout 200 in 211ms
+ ✓ Compiled /login in 225ms (336 modules)
+ GET /login 200 in 332ms
+ ✓ Compiled /api/auth/login in 98ms (331 modules)
+ POST /api/auth/login 401 in 199ms
+ POST /api/auth/login 401 in 84ms
+ POST /api/auth/login 401 in 84ms
+ POST /api/auth/login 200 in 90ms
+ ✓ Compiled / in 233ms (327 modules)
+ GET / 200 in 391ms
+ ✓ Compiled /api/containers in 198ms (330 modules)
+ ✓ Compiled (334 modules)
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 417ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 432ms
+ GET /api/containers 200 in 487ms
+ GET /api/containers 200 in 458ms
+ GET /api/containers 200 in 86ms
+ GET /api/containers 200 in 76ms
+ ✓ Compiled /api/ssl/status in 123ms (338 modules)
+ GET /api/ssl/status 200 in 210ms
+ GET /api/ssl/status 200 in 246ms
+ GET /api/containers 200 in 88ms
+ GET /api/containers 200 in 84ms
+ GET /api/containers 200 in 74ms
+ GET /api/containers 200 in 72ms
+ GET /api/ssl/status 200 in 97ms
+ GET /api/ssl/status 200 in 108ms
+ GET /api/containers 200 in 72ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 20ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin%2Fsgauth0.com 200 in 25ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 21ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 22ms
+ GET /api/containers 200 in 72ms
+ GET /api/files?path=%2Fvar%2Fwww 403 in 21ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 69ms
+ ✓ Compiled in 531ms (617 modules)
+ GET /api/containers 200 in 76ms
+ ✓ Compiled in 341ms (611 modules)
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 22ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 18ms
+ GET /api/containers 200 in 73ms
+ GET /api/containers 200 in 80ms
+ GET /api/containers 200 in 72ms
+ GET /api/containers 200 in 70ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 75ms
+ GET /sites 200 in 181ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 45ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 55ms
+ GET /api/containers 200 in 116ms
+ GET /api/containers 200 in 105ms
+ ✓ Compiled /api/ssl/status in 172ms (332 modules)
+ GET /api/ssl/status 200 in 263ms
+ GET /api/ssl/status 200 in 316ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 28ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 20ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 20ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 19ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fstella 200 in 18ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 19ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 20ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 19ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fstella 200 in 20ms
+ GET /api/containers 200 in 72ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fstella%2Fsgauth0.com 200 in 20ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fstella 200 in 20ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 19ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 19ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin%2Fsgauth0.com 200 in 21ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 21ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 23ms
+ GET /api/containers 200 in 65ms
+ GET /api/containers 200 in 74ms
+ ✓ Compiled /api/sites/[id] in 141ms (334 modules)
+ DELETE /api/sites/1 200 in 905ms
+ GET /api/containers 200 in 67ms
+ GET /api/containers 200 in 63ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fstella 200 in 22ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 19ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 19ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 17ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fstella 200 in 17ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fstella%2Fsgauth0.com 200 in 17ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fstella 200 in 17ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 17ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 18ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin%2Fsgauth0.com 200 in 19ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 17ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 24ms
+ GET /api/containers 200 in 66ms
+ GET /api/containers 200 in 69ms
+ GET /api/containers 200 in 70ms
+ GET /api/ssl/status 200 in 30ms
+ GET /api/ssl/status 200 in 30ms
+ GET /api/containers 200 in 65ms
+ GET /api/containers 200 in 69ms
+ GET /api/containers 200 in 64ms
+ GET /api/containers 200 in 73ms
+ GET /api/containers 401 in 30ms
+ GET /api/containers 200 in 72ms
+ GET /api/containers 200 in 71ms
+ ✓ Compiled /api/auth/logout in 221ms (327 modules)
+ POST /api/auth/logout 200 in 274ms
+ GET /login 200 in 133ms
+ ✓ Compiled /api/auth/login in 120ms (329 modules)
+ POST /api/auth/login 200 in 229ms
+ GET / 200 in 69ms
+ ✓ Compiled /api/files in 108ms (332 modules)
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 263ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 237ms
+ GET /api/containers 200 in 302ms
+ GET /api/containers 200 in 282ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 20ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 23ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fstella 200 in 21ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fstella%2Fsgauth0.com 200 in 21ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fstella 200 in 19ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 19ms
+ GET / 200 in 54ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 53ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites 200 in 59ms
+ GET /api/containers 200 in 110ms
+ GET /api/containers 200 in 101ms
+ GET /api/files?path=%2Fvar%2Fwww%2Fsites%2Fadmin 200 in 23ms
+[?25h
