@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { createSite, getSiteByContainerId } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
@@ -30,7 +32,6 @@ export async function POST(request: NextRequest) {
       container_id: containerId,
       user_id: user.isAdmin ? 1 : user.userId, // Assign to admin or current user
       template_type: type,
-      code_path: codePath,
     });
 
     return NextResponse.json({ site }, { status: 201 });

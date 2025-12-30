@@ -55,7 +55,7 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-[1400px] mx-auto">
       <div className="mb-6">
         <Link href="/" className="text-sm text-blue-600 hover:text-blue-900">
           ← Back to Dashboard

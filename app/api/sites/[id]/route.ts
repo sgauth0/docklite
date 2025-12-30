@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getSiteById, deleteSite } from '@/lib/db';
+import { getSiteById, deleteSite, getUserById } from '@/lib/db';
 import { removeContainer } from '@/lib/docker';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
@@ -27,7 +29,9 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ site });
+    const siteUser = getUserById(site.user_id);
+
+    return NextResponse.json({ site: { ...site, username: siteUser?.username } });
   } catch (error: any) {
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -65,11 +69,13 @@ export async function DELETE(
     }
 
     // Remove container
-    try {
-      await removeContainer(site.container_id, true);
-    } catch (error) {
-      console.error('Error removing container:', error);
-      // Continue even if container removal fails
+    if (site.container_id) {
+      try {
+        await removeContainer(site.container_id, true);
+      } catch (error) {
+        console.error('Error removing container:', error);
+        // Continue even if container removal fails
+      }
     }
 
     // Delete from database

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import ConfirmModal from '../../components/ConfirmModal';
+import { useToast } from '@/lib/hooks/useToast';
 
 interface DetectedSite {
   containerId: string;
@@ -24,6 +26,9 @@ export default function ImportSitesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [importing, setImporting] = useState<string | null>(null);
+  const [showImportAllModal, setShowImportAllModal] = useState(false);
+  const [importAllCount, setImportAllCount] = useState(0);
+  const toast = useToast();
 
   useEffect(() => {
     fetchDetectedSites();
@@ -45,7 +50,7 @@ export default function ImportSitesPage() {
 
   const handleImport = async (site: DetectedSite) => {
     if (!site.domain || !site.codePath) {
-      alert('Cannot import: missing domain or code path');
+      toast.warning('Cannot import: missing domain or code path');
       return;
     }
 
@@ -68,16 +73,17 @@ export default function ImportSitesPage() {
         throw new Error(data.error || 'Failed to import');
       }
 
+      toast.success(`Site "${site.domain}" imported successfully!`);
       // Refresh list
       fetchDetectedSites();
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      toast.error(`Error: ${err.message}`);
     } finally {
       setImporting(null);
     }
   };
 
-  const handleImportAll = async () => {
+  const confirmImportAll = () => {
     const importable = sites.filter(s =>
       !s.alreadyImported &&
       s.codePath &&
@@ -86,13 +92,22 @@ export default function ImportSitesPage() {
     );
 
     if (importable.length === 0) {
-      alert('No sites to import');
+      toast.info('No sites to import');
       return;
     }
 
-    if (!confirm(`Import ${importable.length} site${importable.length > 1 ? 's' : ''}?`)) {
-      return;
-    }
+    setImportAllCount(importable.length);
+    setShowImportAllModal(true);
+  };
+
+  const handleImportAll = async () => {
+    setShowImportAllModal(false);
+    const importable = sites.filter(s =>
+      !s.alreadyImported &&
+      s.codePath &&
+      s.domain &&
+      (s.confidence === 'high' || s.confidence === 'medium')
+    );
 
     for (const site of importable) {
       await handleImport(site);
@@ -136,7 +151,7 @@ export default function ImportSitesPage() {
             Rescan
           </button>
           <button
-            onClick={handleImportAll}
+            onClick={confirmImportAll}
             className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
           >
             Import All
@@ -233,6 +248,20 @@ export default function ImportSitesPage() {
           ))}
         </div>
       )}
+
+      {showImportAllModal && (
+        <ConfirmModal
+          title="Import Multiple Sites"
+          message={`Import ${importAllCount} site${importAllCount > 1 ? 's' : ''}? This will create site records for all detected containers.`}
+          confirmText="Import All"
+          cancelText="Cancel"
+          type="info"
+          onConfirm={handleImportAll}
+          onCancel={() => setShowImportAllModal(false)}
+        />
+      )}
+
+      <toast.ToastContainer />
     </div>
   );
 }

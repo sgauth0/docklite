@@ -7,7 +7,14 @@ const config: Config = {
     './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      screens: {
+        '3xl': '2560px',
+      },
+      gridTemplateColumns: {
+        '8': 'repeat(8, minmax(0, 1fr))',
+      }
+    },
   },
   plugins: [],
 }

@@ -1,12 +1,13 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Site, ContainerInfo, ContainerStats } from '@/types';
+import DeleteSiteModal from '../../components/DeleteSiteModal';
 
-export default function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function SiteDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const router = useRouter();
   const [site, setSite] = useState<Site | null>(null);
   const [container, setContainer] = useState<ContainerInfo | null>(null);
@@ -14,6 +15,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const [logs, setLogs] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -79,18 +81,23 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this site? This will remove the container.')) {
-      return;
-    }
+  const handleDeleteClick = () => {
+    setShowDeleteModal(true);
+  };
 
+  const handleDeleteConfirm = async () => {
     try {
       const res = await fetch(`/api/sites/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete site');
       router.push('/');
     } catch (err) {
       alert(`Error: ${err}`);
+      setShowDeleteModal(false);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
   };
 
   if (loading) {
@@ -137,7 +144,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
             </>
           )}
           <button
-            onClick={handleDelete}
+            onClick={handleDeleteClick}
             className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700"
           >
             Delete
@@ -159,11 +166,11 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
             </div>
             <div>
               <dt className="text-sm font-medium text-gray-500">Code Path</dt>
-              <dd className="text-sm text-gray-900">{site.code_path}</dd>
+              <dd className="text-sm text-gray-900">{`/var/www/sites/${site.username}/${site.domain}`}</dd>
             </div>
             <div>
               <dt className="text-sm font-medium text-gray-500">Container ID</dt>
-              <dd className="text-sm text-gray-900 font-mono">{site.container_id.substring(0, 12)}</dd>
+              <dd className="text-sm text-gray-900 font-mono">{site.container_id?.substring(0, 12)}</dd>
             </div>
             <div>
               <dt className="text-sm font-medium text-gray-500">Status</dt>
@@ -208,6 +215,14 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
           {logs || 'No logs available'}
         </pre>
       </div>
+
+      {showDeleteModal && site && (
+        <DeleteSiteModal
+          siteDomain={site.domain}
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
+        />
+      )}
     </div>
   );
 }

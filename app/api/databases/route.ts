@@ -4,6 +4,8 @@ import { getDatabasesByUser, createDatabase, getNextAvailablePort, grantDatabase
 import { createContainer, pullImage } from '@/lib/docker';
 import { generateDatabaseTemplate } from '@/lib/templates/database';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const user = await requireAuth();
@@ -27,7 +29,7 @@ export async function POST(request: NextRequest) {
     const user = await requireAuth();
     const body = await request.json();
 
-    const { name, password } = body;
+    const { name, username, password } = body;
 
     // Validate input
     if (!name) {
@@ -47,6 +49,7 @@ export async function POST(request: NextRequest) {
     const containerConfig = generateDatabaseTemplate({
       name: sanitizedName,
       port,
+      username: username || 'docklite',
       password,
     });
 
@@ -66,8 +69,9 @@ export async function POST(request: NextRequest) {
     // Grant access to creator
     grantDatabaseAccess(user.userId, database.id);
 
-    // Get password from container labels
+    // Get credentials from container labels
     const dbPassword = containerConfig.Labels?.['docklite.password'] || 'unknown';
+    const dbUsername = containerConfig.Labels?.['docklite.username'] || username || 'docklite';
 
     return NextResponse.json({
       database,
@@ -75,7 +79,7 @@ export async function POST(request: NextRequest) {
         host: 'localhost',
         port,
         database: sanitizedName,
-        username: 'docklite',
+        username: dbUsername,
         password: dbPassword,
       },
     }, { status: 201 });

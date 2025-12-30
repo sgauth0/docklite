@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       username: user.username,
       isAdmin: user.is_admin === 1,
+      role: user.role || (user.is_admin === 1 ? 'admin' : 'user'), // Fallback for migrated data
     };
     await session.save();
 

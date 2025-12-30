@@ -1,36 +1,46 @@
 // User types
+export type UserRole = 'super_admin' | 'admin' | 'user';
+
 export interface User {
   id: number;
   username: string;
   password_hash: string;
-  is_admin: number; // SQLite uses 0/1 for boolean
+  is_admin: number; // SQLite uses 0/1 for boolean (keep for backward compatibility)
+  role: UserRole;
+  is_super_admin: number; // SQLite uses 0/1 for boolean
+  managed_by: number | null;
   created_at: string;
 }
 
 export interface UserSession {
   userId: number;
   username: string;
-  isAdmin: boolean;
+  isAdmin: boolean; // Keep for backward compatibility
+  role: UserRole;
 }
 
 // Site types
 export interface Site {
   id: number;
   domain: string;
-  container_id: string;
   user_id: number;
+  username: string;
+  container_id: string | null;
   template_type: 'static' | 'php' | 'node';
   code_path: string;
   status: string;
+  folder_id: number | null;
   created_at: string;
 }
 
 export interface CreateSiteParams {
   domain: string;
-  container_id: string;
   user_id: number;
   template_type: 'static' | 'php' | 'node';
-  code_path: string;
+  container_id?: string;
+  code_path?: string;
+  status?: string;
+  folder_id?: number | null;
 }
 
 // Database types
@@ -56,6 +66,21 @@ export interface DatabasePermission {
   created_at: string;
 }
 
+// Folder types
+export interface Folder {
+  id: number;
+  user_id: number;
+  name: string;
+  created_at: string;
+}
+
+export interface FolderContainer {
+  id: number;
+  folder_id: number;
+  container_id: string;
+  created_at: string;
+}
+
 // Container types (from Docker)
 export interface ContainerInfo {
   id: string;
@@ -65,6 +90,7 @@ export interface ContainerInfo {
   uptime: string;
   image: string;
   ports: string;
+  labels?: { [key: string]: string };
 }
 
 export interface ContainerStats {

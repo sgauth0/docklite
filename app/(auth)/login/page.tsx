@@ -30,8 +30,8 @@ export default function LoginPage() {
         return;
       }
 
-      router.push('/');
-      router.refresh();
+      // Hard redirect to ensure session is loaded
+      window.location.href = '/';
     } catch (err) {
       setError('An error occurred. Please try again.');
       setLoading(false);

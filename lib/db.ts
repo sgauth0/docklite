@@ -7,11 +7,15 @@ import {
   CreateSiteParams,
   Database as DatabaseType,
   CreateDatabaseParams,
-  DatabasePermission
+  DatabasePermission,
+  Folder,
+  FolderContainer,
+  UserRole
 } from '@/types';
+import { runMigrations } from './migrations';
 
 // Initialize database connection
-const dbPath = path.join(process.cwd(), 'data', 'docklite.db');
+const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'docklite.db');
 const db = new Database(dbPath);
 
 // Enable foreign keys
@@ -34,12 +38,10 @@ export function initializeDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS sites (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      domain TEXT NOT NULL,
-      container_id TEXT UNIQUE NOT NULL,
+      domain TEXT UNIQUE NOT NULL,
       user_id INTEGER NOT NULL,
+      container_id TEXT,
       template_type TEXT NOT NULL,
-      code_path TEXT NOT NULL,
-      status TEXT DEFAULT 'stopped',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id)
     )
@@ -80,8 +82,27 @@ export function initializeDatabase() {
     )
   `);
 
+  // Run migrations after initial schema creation
+  runMigrations(db, dbPath);
+
   // Seed admin user if not exists
   seedAdminUser();
+
+  // Ensure all users have their folders created
+  ensureUserFoldersOnStartup();
+}
+
+// Ensure all users have folders on startup
+async function ensureUserFoldersOnStartup() {
+  try {
+    const { ensureAllUserFolders } = await import('./user-helpers');
+    const users = getAllUsers();
+    if (users.length > 0) {
+      await ensureAllUserFolders(users);
+    }
+  } catch (error) {
+    console.error('⚠️ Failed to check user folders on startup:', error);
+  }
 }
 
 // Seed initial admin user
@@ -117,18 +138,45 @@ export function getUserById(id: number): User | undefined {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as User | undefined;
 }
 
-export function createUser(username: string, password: string, isAdmin: boolean = false): User {
+export function getAllUsers(): User[] {
+  return db.prepare('SELECT * FROM users ORDER BY created_at DESC').all() as User[];
+}
+
+export function createUser(
+  username: string,
+  password: string,
+  isAdmin: boolean = false,
+  role?: UserRole,
+  managedBy?: number | null
+): User {
   const passwordHash = bcrypt.hashSync(password, 10);
+
+  // Determine role if not explicitly provided
+  const userRole: UserRole = role || (isAdmin ? 'admin' : 'user');
+  const isSuperAdmin = userRole === 'super_admin' ? 1 : 0;
+  const isAdminValue = (userRole === 'admin' || userRole === 'super_admin') ? 1 : 0;
+
   const result = db.prepare(`
-    INSERT INTO users (username, password_hash, is_admin)
-    VALUES (?, ?, ?)
-  `).run(username, passwordHash, isAdmin ? 1 : 0);
+    INSERT INTO users (username, password_hash, is_admin, role, is_super_admin, managed_by)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(username, passwordHash, isAdminValue, userRole, isSuperAdmin, managedBy || null);
 
   return getUserById(result.lastInsertRowid as number)!;
 }
 
 export function verifyPassword(user: User, password: string): boolean {
   return bcrypt.compareSync(password, user.password_hash);
+}
+
+export function updateUserPassword(userId: number, password: string): void {
+  const passwordHash = bcrypt.hashSync(password, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, userId);
+}
+
+export function getUsersByManager(managerId: number): User[] {
+  return db.prepare(`
+    SELECT * FROM users WHERE managed_by = ? ORDER BY created_at DESC
+  `).all(managerId) as User[];
 }
 
 // ============================================
@@ -153,13 +201,27 @@ export function getSiteByContainerId(containerId: string): Site | undefined {
   return db.prepare('SELECT * FROM sites WHERE container_id = ?').get(containerId) as Site | undefined;
 }
 
+
+
 export function createSite(params: CreateSiteParams): Site {
-  const result = db.prepare(`
-    INSERT INTO sites (domain, container_id, user_id, template_type, code_path, status)
-    VALUES (?, ?, ?, ?, ?, 'running')
-  `).run(params.domain, params.container_id, params.user_id, params.template_type, params.code_path);
+  const columns = ['domain', 'user_id', 'template_type'];
+  const values: (string | number)[] = [params.domain, params.user_id, params.template_type];
+
+  if (params.container_id) {
+    columns.push('container_id');
+    values.push(params.container_id);
+  }
+
+  const placeholders = values.map(() => '?').join(', ');
+  const sql = `INSERT INTO sites (${columns.join(', ')}) VALUES (${placeholders})`;
+
+  const result = db.prepare(sql).run(...values);
 
   return getSiteById(result.lastInsertRowid as number, params.user_id, true)!;
+}
+
+export function updateSiteContainerId(id: number, containerId: string): void {
+  db.prepare('UPDATE sites SET container_id = ? WHERE id = ?').run(containerId, id);
 }
 
 export function updateSiteStatus(id: number, status: string): void {
@@ -250,6 +312,74 @@ export function getDatabasePermissions(databaseId: number): DatabasePermission[]
   return db.prepare(`
     SELECT * FROM database_permissions WHERE database_id = ?
   `).all(databaseId) as DatabasePermission[];
+}
+
+// ============================================
+// FOLDER FUNCTIONS
+// ============================================
+
+export function createFolder(userId: number, name: string): Folder {
+  const result = db.prepare(`
+    INSERT INTO folders (user_id, name) VALUES (?, ?)
+  `).run(userId, name);
+  return getFolderById(result.lastInsertRowid as number)!;
+}
+
+export function getFoldersByUser(userId: number): Folder[] {
+  return db.prepare(`
+    SELECT * FROM folders WHERE user_id = ? ORDER BY name
+  `).all(userId) as Folder[];
+}
+
+export function getFolderById(id: number): Folder | undefined {
+  return db.prepare(`SELECT * FROM folders WHERE id = ?`).get(id) as Folder | undefined;
+}
+
+export function deleteFolder(id: number): void {
+  // Foreign key constraints will automatically delete folder_containers entries
+  db.prepare(`DELETE FROM folders WHERE id = ?`).run(id);
+}
+
+export function linkContainerToFolder(folderId: number, containerId: string): void {
+  try {
+    db.prepare(`
+      INSERT OR IGNORE INTO folder_containers (folder_id, container_id)
+      VALUES (?, ?)
+    `).run(folderId, containerId);
+  } catch (error) {
+    // Ignore if already linked
+  }
+}
+
+export function unlinkContainerFromFolder(folderId: number, containerId: string): void {
+  db.prepare(`
+    DELETE FROM folder_containers WHERE folder_id = ? AND container_id = ?
+  `).run(folderId, containerId);
+}
+
+export function getContainersByFolder(folderId: number): string[] {
+  const rows = db.prepare(`
+    SELECT container_id FROM folder_containers WHERE folder_id = ?
+  `).all(folderId) as Array<{container_id: string}>;
+  return rows.map(r => r.container_id);
+}
+
+export function getFolderByContainerId(containerId: string): Folder | undefined {
+  return db.prepare(`
+    SELECT f.* FROM folders f
+    JOIN folder_containers fc ON f.id = fc.folder_id
+    WHERE fc.container_id = ?
+  `).get(containerId) as Folder | undefined;
+}
+
+export function moveContainerToFolder(containerId: string, targetFolderId: number): void {
+  // Remove from all folders first
+  db.prepare(`
+    DELETE FROM folder_containers WHERE container_id = ?
+  `).run(containerId);
+
+  // Add to target folder
+  linkContainerToFolder(targetFolderId, containerId);
 }
 
 // Initialize database on module load

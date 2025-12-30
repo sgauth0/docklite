@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, requireAdmin } from '@/lib/auth';
 import { createUser } from '@/lib/db';
+import { ensureUserFolder } from '@/lib/user-helpers';
+
+export const dynamic = 'force-dynamic';
 
 // Get all users (admin only)
 export async function GET() {
@@ -49,6 +52,15 @@ export async function POST(request: NextRequest) {
 
     // Create user
     const newUser = createUser(username, password, isAdmin || false);
+
+    // Create user's home folder in /var/www/sites/{username}
+    try {
+      const userPath = await ensureUserFolder(username);
+      console.log(`✓ Created folder for user ${username}: ${userPath}`);
+    } catch (folderError) {
+      console.error(`⚠️ Failed to create folder for user ${username}:`, folderError);
+      // Don't fail user creation if folder creation fails - we can fix it later
+    }
 
     return NextResponse.json({
       user: {

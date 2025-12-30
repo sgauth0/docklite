@@ -3,6 +3,8 @@ import { requireAuth } from '@/lib/auth';
 import { startContainer } from '@/lib/docker';
 import { getSiteByContainerId, updateSiteStatus } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
