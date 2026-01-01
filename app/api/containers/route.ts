@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { createContainer, listContainers, pullImage } from '@/lib/docker';
+import { createContainer, listContainers, pullImage, getContainerById } from '@/lib/docker';
 import {
   getFoldersByUser,
   getContainersByFolder,
@@ -8,6 +8,7 @@ import {
   createSite,
   updateSiteContainerId,
   updateSiteStatus,
+  getUserById,
 } from '@/lib/db';
 import { ContainerInfo, FolderNode } from '@/types';
 import { buildFolderTree } from '@/lib/folder-helpers';
@@ -98,27 +99,36 @@ export async function POST(request: Request) {
     }
 
     const targetUserId = user.isAdmin && user_id ? Number(user_id) : user.userId;
+    const targetUser = getUserById(targetUserId);
+    if (!targetUser) {
+      return NextResponse.json({ error: 'Target user not found' }, { status: 404 });
+    }
 
     const existing = getSiteByDomain(domain);
     if (existing && existing.container_id) {
-      return NextResponse.json({ error: 'Domain already exists' }, { status: 409 });
+      const existingContainer = await getContainerById(existing.container_id);
+      if (existingContainer) {
+        return NextResponse.json({ error: 'Domain already exists' }, { status: 409 });
+      }
     }
 
     // Prepare site directory and code path
-    const sitePath = code_path || getSitePathByUserId(targetUserId, domain);
-    await createSiteDirectory(user.username, domain);
-    if (!code_path) {
+    const sitePath = code_path || existing?.code_path || getSitePathByUserId(targetUserId, domain);
+    await createSiteDirectory(targetUser.username, domain);
+    if (!code_path && !existing) {
       await createDefaultIndexFile(sitePath, domain, template_type);
     }
 
-    // Create DB record
-    const site = createSite({
-      domain,
-      template_type,
-      user_id: targetUserId,
-      code_path: sitePath,
-      folder_id: folder_id || null,
-    });
+    // Create or reuse DB record
+    const site = existing
+      ? existing
+      : createSite({
+          domain,
+          template_type,
+          user_id: targetUserId,
+          code_path: sitePath,
+          folder_id: folder_id || null,
+        });
 
     try {
       // Pull image and create container
