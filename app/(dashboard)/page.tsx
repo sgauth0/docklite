@@ -5,14 +5,13 @@ import Link from 'next/link';
 import { ContainerInfo, FolderNode } from '@/types';
 import ContainerCard from './components/ContainerCard';
 import ContainerDetailsModal from './components/ContainerDetailsModal';
-import DeleteSiteModal from './components/DeleteSiteModal';
 import AllContainersModal from './components/AllContainersModal';
 import AddFolderModal from './components/AddFolderModal';
 import FolderSection from './components/FolderSection';
 import SkeletonLoader from './components/SkeletonLoader';
 import SslStatus from './components/SslStatus';
 import { useToast } from '@/lib/hooks/useToast';
-import { Flower, Database, Lightning, Package, Sparkle, ArrowsClockwise, Plus, FolderPlus } from '@phosphor-icons/react';
+import { Flower, Database, Lightning, Package, ArrowsClockwise, FolderPlus } from '@phosphor-icons/react';
 
 type ContainerType = 'all' | 'sites' | 'databases' | 'other';
 
@@ -22,8 +21,6 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   const [selectedContainerName, setSelectedContainerName] = useState<string>('');
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [siteToDelete, setSiteToDelete] = useState<{ id: number; domain: string } | null>(null);
   const [showAllContainersModal, setShowAllContainersModal] = useState(false);
   const [showAddFolderModal, setShowAddFolderModal] = useState(false);
   const [subfolderParent, setSubfolderParent] = useState<{ id: number; name: string } | null>(null);
@@ -56,7 +53,10 @@ export default function DashboardPage() {
       const res = await fetch(`/api/containers/${containerId}/${action}`, {
         method: 'POST',
       });
-      if (!res.ok) throw new Error(`Failed to ${action} container`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to ${action} container`);
+      }
       toast.success(`Container ${action}ed successfully!`);
       fetchData();
     } catch (err: any) {
@@ -122,33 +122,6 @@ export default function DashboardPage() {
 
   const totalContainers = countContainers(foldersData);
   const filteredFolders = filterFolderTree(foldersData);
-
-  const handleDeleteClick = (siteId: number, domain: string) => {
-    setSiteToDelete({ id: siteId, domain });
-    setDeleteModalOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!siteToDelete) return;
-
-    try {
-      const res = await fetch(`/api/sites/${siteToDelete.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete site');
-      toast.success(`Site "${siteToDelete.domain}" deleted successfully!`);
-      setDeleteModalOpen(false);
-      setSiteToDelete(null);
-      fetchData();
-    } catch (err: any) {
-      toast.error(`Error: ${err.message || err}`);
-      setDeleteModalOpen(false);
-      setSiteToDelete(null);
-    }
-  };
-
-  const handleDeleteCancel = () => {
-    setDeleteModalOpen(false);
-    setSiteToDelete(null);
-  };
 
   const handleContainerDrop = async (containerId: string, targetFolderId: number) => {
     try {
@@ -289,13 +262,13 @@ export default function DashboardPage() {
             <FolderPlus size={20} weight="duotone" />
             New Folder
           </button>
-          <Link
-            href="/sites/new"
+          <button
+            onClick={() => setShowAllContainersModal(true)}
             className="btn-neon inline-flex items-center gap-2"
           >
-            <Plus size={20} weight="duotone" />
-            Create Site
-          </Link>
+            <Package size={20} weight="duotone" />
+            All Containers
+          </button>
         </div>
       </div>
 
@@ -312,7 +285,6 @@ export default function DashboardPage() {
           }}
         >
           <option value="all">All Containers</option>
-          <option value="sites">Sites Only</option>
           <option value="databases">Databases Only</option>
           <option value="other">Other Containers</option>
         </select>
@@ -323,10 +295,13 @@ export default function DashboardPage() {
           <p className="text-xl font-bold neon-text mb-4" style={{ color: 'var(--neon-pink)' }}>
             No containers detected
           </p>
-          <Link href="/sites/new" className="btn-neon inline-flex items-center gap-2">
-            <Sparkle size={20} weight="duotone" />
-            Create Your First Site
-          </Link>
+          <button
+            onClick={() => setShowAllContainersModal(true)}
+            className="btn-neon inline-flex items-center gap-2"
+          >
+            <Package size={20} weight="duotone" />
+            View Containers
+          </button>
         </div>
       ) : filteredFolders.length === 0 ? (
         <div className="mt-12 text-center py-16 card-vapor max-w-2xl mx-auto">
@@ -353,7 +328,6 @@ export default function DashboardPage() {
                 setSelectedContainerId(id);
                 setSelectedContainerName(name);
               }}
-              onDelete={handleDeleteClick}
               onRefresh={fetchData}
               onContainerDrop={handleContainerDrop}
               onContainerReorder={handleContainerReorder}
@@ -380,13 +354,6 @@ export default function DashboardPage() {
         />
       )}
 
-      {deleteModalOpen && siteToDelete && (
-        <DeleteSiteModal
-          siteDomain={siteToDelete.domain}
-          onConfirm={handleDeleteConfirm}
-          onCancel={handleDeleteCancel}
-        />
-      )}
 
       {showAllContainersModal && (
         <AllContainersModal onClose={() => setShowAllContainersModal(false)} />

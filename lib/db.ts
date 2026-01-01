@@ -234,6 +234,10 @@ export function getAllSites(): Site[] {
   return db.prepare('SELECT * FROM sites ORDER BY created_at DESC').all() as Site[];
 }
 
+export function getSiteByDomain(domain: string): Site | undefined {
+  return db.prepare('SELECT * FROM sites WHERE domain = ?').get(domain) as Site | undefined;
+}
+
 export function getSiteById(id: number, userId: number, isAdmin: boolean): Site | undefined {
   if (isAdmin) {
     return db.prepare('SELECT * FROM sites WHERE id = ?').get(id) as Site | undefined;

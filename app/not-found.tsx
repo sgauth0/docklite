@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 
 export default function NotFound() {
@@ -63,12 +65,12 @@ export default function NotFound() {
             </div>
           </Link>
           <Link
-            href="/sites"
+            href="/"
             className="card-vapor p-4 rounded-lg border border-purple-500/20 hover:border-pink-500/60 transition-all hover:scale-105"
           >
             <div className="text-2xl mb-2">🌸</div>
             <div className="text-xs font-bold" style={{ color: 'var(--neon-pink)' }}>
-              Sites
+              Containers
             </div>
           </Link>
           <Link

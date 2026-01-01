@@ -10,9 +10,10 @@ interface FileEntry {
 
 interface FileManagerProps {
   userSession?: { username: string; isAdmin: boolean } | null;
+  embedded?: boolean;
 }
 
-export default function FileManager({ userSession }: FileManagerProps) {
+export default function FileManager({ userSession, embedded = false }: FileManagerProps) {
   // Determine initial path based on user role
   const getInitialPath = () => {
     if (!userSession) return '/var/www/sites';
@@ -20,7 +21,6 @@ export default function FileManager({ userSession }: FileManagerProps) {
     return `/var/www/sites/${userSession.username}`;
   };
 
-  const [isOpen, setIsOpen] = useState(true);
   const [currentPath, setCurrentPath] = useState(getInitialPath());
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,11 +70,14 @@ export default function FileManager({ userSession }: FileManagerProps) {
     }
   };
 
+  const minPath = userSession?.isAdmin
+    ? '/var/www/sites'
+    : userSession?.username
+      ? `/var/www/sites/${userSession.username}`
+      : '/var/www/sites';
+
   const handleBackClick = () => {
     const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
-
-    // Determine the minimum allowed path based on user role
-    const minPath = userSession?.isAdmin ? '/var/www/sites' : `/var/www/sites/${userSession?.username}`;
 
     // Only navigate back if parent is within allowed directory
     if (parentPath && parentPath.length >= minPath.length) {
@@ -100,7 +103,6 @@ export default function FileManager({ userSession }: FileManagerProps) {
       if (!res.ok) {
         throw new Error(await res.text());
       }
-      closeModal();
     } catch (err: any) {
       setError(err.message);
     }
@@ -110,25 +112,61 @@ export default function FileManager({ userSession }: FileManagerProps) {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleCreateItem = async (type: 'file' | 'folder') => {
+    const label = type === 'file' ? 'file' : 'folder';
+    const name = window.prompt(`New ${label} name`);
+    const trimmedName = name?.trim();
+    if (!trimmedName) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('path', currentPath);
-
+    setError('');
     try {
-      const res = await fetch('/api/files/upload', {
+      const res = await fetch('/api/files/create', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          basePath: currentPath,
+          name: trimmedName,
+          type,
+        }),
       });
       if (!res.ok) {
-        throw new Error(await res.text());
+        const message = await res.text();
+        throw new Error(message || `Failed to create ${label}`);
+      }
+      fetchFiles();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    if (selectedFiles.length === 0) return;
+
+    setError('');
+    try {
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('path', currentPath);
+
+        const res = await fetch('/api/files/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
       }
       fetchFiles(); // Refresh file list
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      if (event.target) {
+        event.target.value = '';
+      }
     }
   };
 
@@ -136,61 +174,63 @@ export default function FileManager({ userSession }: FileManagerProps) {
     window.location.href = `/api/files/download?path=${encodeURIComponent(`${currentPath}/${file.name}`)}`;
   };
 
-  if (!isOpen) {
-    return (
-      <div className="fixed left-0 z-50" style={{ top: 'calc(50vh + 40px)' }}>
-        <button
-          onClick={() => setIsOpen(true)}
-          className="bg-gray-800 hover:bg-gray-700 text-white px-2 py-4 rounded-r-lg shadow-lg transition-colors"
-          style={{
-            writingMode: 'vertical-rl',
-            textOrientation: 'mixed',
-          }}
-        >
-          📁 File Manager
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div
-      className="fixed left-0 bg-gray-900 text-white flex flex-col z-50"
-      style={{ width: '320px', top: '80px', height: 'calc(100vh - 80px)' }}
-    >
-      <div className="p-4 bg-gray-800 flex justify-between items-center">
-        <h2 className="text-lg font-bold">File Manager</h2>
+    <div className={`flex flex-col h-full ${embedded ? '' : 'w-full'}`}>
+      <div className="p-4 border-b border-purple-500/20 flex items-center justify-between">
         <div>
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
-          <button onClick={handleUploadClick} className="mr-2 p-2 bg-blue-500 rounded">Upload</button>
-          <button onClick={() => setIsOpen(false)} className="p-2 bg-red-500 rounded">&times;</button>
+          <div className="text-sm font-bold text-cyan-300">File Browser</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-purple-200/70">Local Sites</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
+          <button onClick={() => handleCreateItem('folder')} className="btn-neon px-3 py-1 text-xs font-bold">
+            New Folder
+          </button>
+          <button onClick={() => handleCreateItem('file')} className="btn-neon px-3 py-1 text-xs font-bold">
+            New File
+          </button>
+          <button onClick={handleUploadClick} className="btn-neon px-3 py-1 text-xs font-bold">
+            Upload
+          </button>
         </div>
       </div>
-      <div className="p-2 bg-gray-800">
+      <div className="p-3 border-b border-purple-500/20">
         <button
           onClick={handleBackClick}
-          disabled={(() => {
-            const minPath = userSession?.isAdmin ? '/var/www/sites' : `/var/www/sites/${userSession?.username}`;
-            return currentPath === minPath;
-          })()}
-          className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-600"
+          disabled={currentPath === minPath}
+          className="btn-neon px-3 py-1 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
         >
           ← Back
         </button>
-        <div className="text-xs truncate mt-2 opacity-70">{currentPath}</div>
+        <div className="text-[11px] truncate mt-2 text-purple-200/70">{currentPath}</div>
       </div>
-      <div className="flex-1 p-4 overflow-y-auto">
-        {loading && <p>Loading...</p>}
-        {error && <p className="text-red-500">{error}</p>}
-        {!loading && !error && (
-          <ul>
+      <div className="flex-1 p-3 overflow-y-auto">
+        {loading && <p className="text-sm text-cyan-200/80">Loading...</p>}
+        {error && <p className="text-sm text-pink-300">{error}</p>}
+        {!loading && !error && files.length === 0 && (
+          <p className="text-xs text-purple-200/60">No files in this folder.</p>
+        )}
+        {!loading && !error && files.length > 0 && (
+          <ul className="space-y-1">
             {files.map((file) => (
-              <li key={file.name} className="flex justify-between items-center p-1 rounded hover:bg-gray-700">
-                <span onClick={() => handleFileClick(file)} className="cursor-pointer">
-                  {file.isDirectory ? '📁' : '📄'} {file.name}
-                </span>
+              <li
+                key={file.name}
+                className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-purple-900/30 transition-colors"
+              >
+                <button
+                  onClick={() => handleFileClick(file)}
+                  className="flex items-center gap-2 text-left min-w-0"
+                >
+                  <span>{file.isDirectory ? '📁' : '📄'}</span>
+                  <span className="text-sm text-cyan-100 truncate">{file.name}</span>
+                </button>
                 {!file.isDirectory && (
-                  <button onClick={() => handleDownloadClick(file)} className="p-1 bg-green-500 rounded text-xs">Download</button>
+                  <button
+                    onClick={() => handleDownloadClick(file)}
+                    className="btn-neon px-2 py-1 text-[11px] font-bold"
+                  >
+                    Download
+                  </button>
                 )}
               </li>
             ))}

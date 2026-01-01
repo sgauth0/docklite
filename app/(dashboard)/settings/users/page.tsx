@@ -24,6 +24,10 @@ export default function ManageUsersPage() {
   const [deleteUserTarget, setDeleteUserTarget] = useState<User | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [passwordUser, setPasswordUser] = useState<User | null>(null);
+  const [passwordValue, setPasswordValue] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
   const [createForm, setCreateForm] = useState({
     username: '',
     password: '',
@@ -112,6 +116,33 @@ export default function ManageUsersPage() {
       setDeleteError(err.message || 'Failed to delete user');
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordUser) return;
+    setPasswordLoading(true);
+    setPasswordError('');
+    try {
+      const res = await fetch('/api/users/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: passwordUser.id,
+          newPassword: passwordValue,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to change password');
+      }
+      setPasswordUser(null);
+      setPasswordValue('');
+    } catch (err: any) {
+      setPasswordError(err.message || 'Failed to change password');
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -255,6 +286,20 @@ export default function ManageUsersPage() {
                             Delete
                           </button>
                         )}
+                        {currentUser?.role === 'super_admin' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPasswordUser(user);
+                              setPasswordValue('');
+                              setPasswordError('');
+                              setMenuUserId(null);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-neon-cyan hover:bg-neon-purple/10"
+                          >
+                            Change Password
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -392,6 +437,77 @@ export default function ManageUsersPage() {
                 {deleteLoading ? 'Deleting...' : 'Delete'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {passwordUser && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div
+            className="card-vapor max-w-md w-full p-6 relative"
+            style={{
+              background: 'linear-gradient(135deg, rgba(26, 10, 46, 0.95) 0%, rgba(10, 5, 30, 0.9) 100%)',
+              border: '1px solid rgba(0, 255, 255, 0.3)',
+              boxShadow: '0 0 30px rgba(0, 255, 255, 0.25)',
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-neon-cyan">Change Password</h2>
+              <button
+                type="button"
+                onClick={() => setPasswordUser(null)}
+                className="cyber-button-sm"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+              Set a new password for <span className="text-neon-pink font-bold">{passwordUser.username}</span>.
+            </p>
+            {passwordError && (
+              <div
+                className="mb-4 px-3 py-2 rounded-lg text-sm"
+                style={{
+                  background: 'rgba(255, 107, 107, 0.15)',
+                  border: '1px solid rgba(255, 107, 107, 0.5)',
+                  color: '#ff6b6b',
+                }}
+              >
+                {passwordError}
+              </div>
+            )}
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label htmlFor="change-password" className="block text-sm font-bold mb-2" style={{ color: 'var(--neon-pink)' }}>
+                  New Password
+                </label>
+                <input
+                  id="change-password"
+                  type="password"
+                  minLength={6}
+                  required
+                  value={passwordValue}
+                  onChange={(e) => setPasswordValue(e.target.value)}
+                  className="input-vapor w-full"
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPasswordUser(null)}
+                  className="cyber-button-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="cyber-button disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {passwordLoading ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

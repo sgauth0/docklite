@@ -51,7 +51,10 @@ export default function AllContainersModal({ onClose }: AllContainersModalProps)
         const res = await fetch(`/api/containers/${containerId}/${action}`, {
           method: 'POST',
         });
-        if (!res.ok) throw new Error(`Failed to ${action} container`);
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `Failed to ${action} container`);
+        }
         toast.success(`Container ${action}ed successfully!`);
       }
       fetchAllContainers(); // Refresh list

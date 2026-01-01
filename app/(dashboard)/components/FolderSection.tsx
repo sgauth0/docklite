@@ -29,7 +29,7 @@ interface FolderSectionProps {
   getContainerBadge: (container: ContainerInfo) => ReactNode;
   onAction: (containerId: string, action: 'start' | 'stop' | 'restart') => void;
   onViewDetails: (id: string, name: string) => void;
-  onDelete: (siteId: number, domain: string) => void;
+  onDelete?: (siteId: number, domain: string) => void;
   onRefresh: () => void;
   onContainerDrop: (containerId: string, targetFolderId: number) => void;
   onContainerReorder?: (folderId: number, containerId: string, newPosition: number) => Promise<void>;
@@ -51,7 +51,7 @@ function SortableContainer({
   siteId: number;
   onAction: (containerId: string, action: 'start' | 'stop' | 'restart') => void;
   onViewDetails: (id: string, name: string) => void;
-  onDelete: (siteId: number, domain: string) => void;
+  onDelete?: (siteId: number, domain: string) => void;
 }) {
   const {
     attributes,

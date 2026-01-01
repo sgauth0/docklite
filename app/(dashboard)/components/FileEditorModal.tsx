@@ -1,7 +1,8 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface FileEditorModalProps {
   filePath: string;
@@ -18,39 +19,58 @@ export default function FileEditorModal({
 }: FileEditorModalProps) {
   const [content, setContent] = useState(initialContent);
   const [isEditing, setIsEditing] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleSave = async () => {
     await onSave(filePath, content);
     setIsEditing(false);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 text-white rounded-lg shadow-lg w-3/4 h-3/4 flex flex-col">
-        <div className="p-4 border-b border-gray-700 flex justify-between items-center">
-          <h2 className="text-lg font-bold">{filePath}</h2>
+  if (!isMounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100000]">
+      <div className="card-vapor neon-border text-white rounded-2xl shadow-2xl w-[min(1100px,94vw)] h-[80vh] flex flex-col border-2 border-purple-500/30">
+        <div className="p-4 border-b border-purple-500/30 flex flex-wrap items-center justify-between gap-3">
           <div>
+            <div className="text-xs uppercase tracking-[0.2em] text-purple-200/70">File Editor</div>
+            <div className="text-sm font-bold text-cyan-200 truncate max-w-[70vw]">{filePath}</div>
+          </div>
+          <div className="flex items-center gap-2">
             {!isEditing && (
-              <button onClick={() => setIsEditing(true)} className="mr-2 p-2 bg-blue-500 rounded">Edit</button>
+              <button onClick={() => setIsEditing(true)} className="btn-neon px-3 py-1 text-xs font-bold">
+                Edit
+              </button>
             )}
             {isEditing && (
-              <button onClick={handleSave} className="mr-2 p-2 bg-green-500 rounded">Save</button>
+              <button onClick={handleSave} className="btn-neon px-3 py-1 text-xs font-bold">
+                Save
+              </button>
             )}
-            <button onClick={onClose} className="p-2 bg-red-500 rounded">&times;</button>
+            <button onClick={onClose} className="btn-neon px-3 py-1 text-xs font-bold">
+              Close
+            </button>
           </div>
         </div>
-        <div className="flex-1 p-4 overflow-auto">
+        <div className="flex-1 p-4 overflow-hidden">
           {isEditing ? (
             <textarea
-              className="w-full h-full bg-gray-900 text-white p-2 rounded"
+              className="w-full h-full input-vapor font-mono text-sm resize-none overflow-auto"
               value={content}
               onChange={(e) => setContent(e.target.value)}
             />
           ) : (
-            <pre className="whitespace-pre-wrap">{content}</pre>
+            <div className="h-full overflow-auto">
+              <pre className="whitespace-pre-wrap text-sm text-cyan-100">{content}</pre>
+            </div>
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,21 +1,31 @@
 'use client';
 
 import { useState } from 'react';
+import FileManager from './FileManager';
 
-type SidebarContent = 'file-browser' | 'stats' | 'logs' | 'database' | 'search' | 'none';
+type SidebarContent = 'stats' | 'logs' | 'database' | 'search' | 'none';
 
 interface SidebarPanelProps {
   side: 'left' | 'right';
   defaultContent?: SidebarContent;
+  mode?: 'file-browser' | 'modular';
+  defaultOpen?: boolean;
+  userSession?: { username: string; isAdmin: boolean } | null;
 }
 
-export default function SidebarPanel({ side, defaultContent = 'none' }: SidebarPanelProps) {
+export default function SidebarPanel({
+  side,
+  defaultContent = 'none',
+  mode = 'modular',
+  defaultOpen = false,
+  userSession = null,
+}: SidebarPanelProps) {
+  const isFileBrowser = mode === 'file-browser';
   const [selectedContent, setSelectedContent] = useState<SidebarContent>(defaultContent);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
 
   const contentOptions: Array<{ value: SidebarContent; label: string; icon: string }> = [
     { value: 'none', label: 'None', icon: '—' },
-    { value: 'file-browser', label: 'File Browser', icon: '📁' },
     { value: 'stats', label: 'Live Stats', icon: '📊' },
     { value: 'logs', label: 'Container Logs', icon: '📜' },
     { value: 'database', label: 'Database Query', icon: '💾' },
@@ -23,12 +33,13 @@ export default function SidebarPanel({ side, defaultContent = 'none' }: SidebarP
   ];
 
   // Toggle button when sidebar is closed
-  if (!isOpen || selectedContent === 'none') {
+  if (!isOpen || (!isFileBrowser && selectedContent === 'none')) {
     return (
       <button
         onClick={() => {
-          if (selectedContent === 'none') {
-            setSelectedContent('file-browser');
+          if (!isFileBrowser && selectedContent === 'none') {
+            const nextContent = defaultContent === 'none' ? 'stats' : defaultContent;
+            setSelectedContent(nextContent);
           }
           setIsOpen(true);
         }}
@@ -41,7 +52,7 @@ export default function SidebarPanel({ side, defaultContent = 'none' }: SidebarP
         }}
         title={`Open ${side} sidebar`}
       >
-        {side === 'left' ? '▶' : '◀'} Sidebar
+        {side === 'left' ? '▶' : '◀'} {isFileBrowser ? 'Files' : 'Sidebar'}
       </button>
     );
   }
@@ -52,31 +63,33 @@ export default function SidebarPanel({ side, defaultContent = 'none' }: SidebarP
         className={`fixed top-20 ${side === 'left' ? 'left-0' : 'right-0'} h-[calc(100vh-80px)] w-[20vw] bg-gradient-to-b from-purple-900/30 to-cyan-900/30 backdrop-blur-md border-${side === 'left' ? 'r' : 'l'} border-purple-500/20 flex flex-col z-40`}
       >
         {/* Header with selector only */}
-        <div className="p-4 border-b border-purple-500/20">
-          <select
-            value={selectedContent}
-            onChange={(e) => setSelectedContent(e.target.value as SidebarContent)}
-            className="input-vapor px-3 py-2 text-sm font-bold w-full"
-            style={{
-              background: 'rgba(15, 5, 30, 0.7)',
-              border: '2px solid var(--neon-cyan)',
-            }}
-          >
-            {contentOptions.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.icon} {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!isFileBrowser && (
+          <div className="p-4 border-b border-purple-500/20">
+            <select
+              value={selectedContent}
+              onChange={(e) => setSelectedContent(e.target.value as SidebarContent)}
+              className="input-vapor px-3 py-2 text-sm font-bold w-full"
+              style={{
+                background: 'rgba(15, 5, 30, 0.7)',
+                border: '2px solid var(--neon-cyan)',
+              }}
+            >
+              {contentOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.icon} {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Content Area - simple padding, no notch */}
-        <div className="flex-1 overflow-auto p-4">
-          {selectedContent === 'file-browser' && <FileBrowserContent />}
-          {selectedContent === 'stats' && <StatsContent />}
-          {selectedContent === 'logs' && <LogsContent />}
-          {selectedContent === 'database' && <DatabaseContent />}
-          {selectedContent === 'search' && <SearchContent />}
+        <div className={`flex-1 overflow-auto ${isFileBrowser ? 'p-0' : 'p-4'}`}>
+          {isFileBrowser && <FileManager embedded userSession={userSession} />}
+          {!isFileBrowser && selectedContent === 'stats' && <StatsContent />}
+          {!isFileBrowser && selectedContent === 'logs' && <LogsContent />}
+          {!isFileBrowser && selectedContent === 'database' && <DatabaseContent />}
+          {!isFileBrowser && selectedContent === 'search' && <SearchContent />}
         </div>
       </div>
 
@@ -107,26 +120,6 @@ export default function SidebarPanel({ side, defaultContent = 'none' }: SidebarP
 }
 
 // Placeholder components for each content type
-function FileBrowserContent() {
-  return (
-    <div className="text-sm font-mono">
-      <div className="mb-4 text-cyan-300 font-bold">📁 File Browser</div>
-      <p className="text-xs opacity-70 mb-4">Browse site files</p>
-      <div className="space-y-2">
-        <div className="p-2 bg-purple-900/20 rounded hover:bg-purple-900/40 cursor-pointer">
-          📄 index.html
-        </div>
-        <div className="p-2 bg-purple-900/20 rounded hover:bg-purple-900/40 cursor-pointer">
-          📄 style.css
-        </div>
-        <div className="p-2 bg-purple-900/20 rounded hover:bg-purple-900/40 cursor-pointer">
-          📂 assets/
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function StatsContent() {
   return (
     <div className="text-sm font-mono">

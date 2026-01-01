@@ -2,6 +2,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import ConfirmModal from '../components/ConfirmModal';
+import { useToast } from '@/lib/hooks/useToast';
 
 interface TableInfo {
   name: string;
@@ -14,24 +16,47 @@ export default function DbViewer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showCleanupConfirm, setShowCleanupConfirm] = useState(false);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
-    async function fetchDbInfo() {
-      try {
-        const res = await fetch('/api/db');
-        if (!res.ok) {
-          throw new Error('Failed to fetch database info');
-        }
-        const data = await res.json();
-        setDbInfo(data.dbInfo);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchDbInfo();
   }, []);
+
+  const fetchDbInfo = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/db');
+      if (!res.ok) {
+        throw new Error('Failed to fetch database info');
+      }
+      const data = await res.json();
+      setDbInfo(data.dbInfo);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCleanup = async () => {
+    setCleanupLoading(true);
+    try {
+      const res = await fetch('/api/db/cleanup', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to clean up database');
+      }
+      toast.success(`Cleanup complete: ${data.removed?.sites || 0} sites, ${data.removed?.databases || 0} databases.`);
+      await fetchDbInfo();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to clean up database');
+    } finally {
+      setCleanupLoading(false);
+      setShowCleanupConfirm(false);
+    }
+  };
 
   const getSafeValue = (val: any) => {
     if (val === null || val === undefined || val === '') return '-';
@@ -80,16 +105,25 @@ export default function DbViewer() {
                   Internal SQLite database structure
                 </p>
               </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 rounded-lg font-bold transition-all hover:scale-105"
-                style={{
-                  background: 'linear-gradient(135deg, #ff6b6b 0%, var(--neon-pink) 100%)',
-                  color: 'white',
-                }}
-              >
-                ✕ Close
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowCleanupConfirm(true)}
+                  disabled={cleanupLoading}
+                  className="cyber-button-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {cleanupLoading ? 'Cleaning...' : 'Clean Up Database'}
+                </button>
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 rounded-lg font-bold transition-all hover:scale-105"
+                  style={{
+                    background: 'linear-gradient(135deg, #ff6b6b 0%, var(--neon-pink) 100%)',
+                    color: 'white',
+                  }}
+                >
+                  ✕ Close
+                </button>
+              </div>
             </div>
 
             {/* Modal Content */}
@@ -184,6 +218,18 @@ export default function DbViewer() {
           </div>
         </div>
       )}
+      {showCleanupConfirm && (
+        <ConfirmModal
+          title="Clean Up Database"
+          message="This will remove orphaned site and database records that no longer have containers."
+          confirmText="Clean Up"
+          cancelText="Cancel"
+          onConfirm={handleCleanup}
+          onCancel={() => setShowCleanupConfirm(false)}
+          type="warning"
+        />
+      )}
+      <toast.ToastContainer />
     </>
   );
 }

@@ -9,12 +9,10 @@ interface AddBackupJobModalProps {
   onSuccess: () => void;
 }
 
-type TargetType = 'all-sites' | 'all-databases' | 'site' | 'database';
+type TargetType = 'all-databases' | 'database';
 
 const TARGET_TYPES = [
-  { value: 'all-sites', label: 'All Sites', description: 'Backup all website containers' },
   { value: 'all-databases', label: 'All Databases', description: 'Backup all database containers' },
-  { value: 'site', label: 'Specific Site', description: 'Backup one site' },
   { value: 'database', label: 'Specific Database', description: 'Backup one database' },
 ];
 
@@ -30,38 +28,22 @@ const FREQUENCIES = [
 
 export default function AddBackupJobModal({ destinations, onClose, onSuccess }: AddBackupJobModalProps) {
   const [destinationId, setDestinationId] = useState(destinations[0]?.id || 0);
-  const [targetType, setTargetType] = useState<TargetType>('all-sites');
+  const [targetType, setTargetType] = useState<TargetType>('all-databases');
   const [targetId, setTargetId] = useState<number | ''>('');
   const [frequency, setFrequency] = useState('daily');
   const [retentionDays, setRetentionDays] = useState(30);
   const [enabled, setEnabled] = useState(true);
 
-  const [sites, setSites] = useState<any[]>([]);
   const [databases, setDatabases] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Load sites/databases if needed
+  // Load databases if needed
   useEffect(() => {
-    if (targetType === 'site') {
-      loadSites();
-    } else if (targetType === 'database') {
+    if (targetType === 'database') {
       loadDatabases();
     }
   }, [targetType]);
-
-  const loadSites = async () => {
-    try {
-      const res = await fetch('/api/sites');
-      const data = await res.json();
-      setSites(data.sites || []);
-      if (data.sites?.length > 0) {
-        setTargetId(data.sites[0].id);
-      }
-    } catch (err) {
-      console.error('Error loading sites:', err);
-    }
-  };
 
   const loadDatabases = async () => {
     try {
@@ -88,7 +70,7 @@ export default function AddBackupJobModal({ destinations, onClose, onSuccess }: 
         body: JSON.stringify({
           destination_id: destinationId,
           target_type: targetType,
-          target_id: (targetType === 'site' || targetType === 'database') && targetId !== '' ? targetId : null,
+          target_id: targetType === 'database' && targetId !== '' ? targetId : null,
           frequency,
           retention_days: retentionDays,
           enabled: enabled ? 1 : 0
@@ -137,7 +119,7 @@ export default function AddBackupJobModal({ destinations, onClose, onSuccess }: 
             Create Backup Job
           </h2>
           <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>
-            Schedule automated backups for your sites and databases
+            Schedule automated backups for your databases
           </p>
         </div>
 
@@ -200,32 +182,6 @@ export default function AddBackupJobModal({ destinations, onClose, onSuccess }: 
               ))}
             </select>
           </div>
-
-          {targetType === 'site' && (
-            <div>
-              <label className="block text-sm font-bold mb-2" style={{ color: 'var(--neon-pink)' }}>
-                Select Site
-              </label>
-              <select
-                value={targetId}
-                onChange={(e) => setTargetId(Number(e.target.value))}
-                className="input-vapor w-full"
-                required
-                disabled={loading || sites.length === 0}
-              >
-                {sites.map((site) => (
-                  <option key={site.id} value={site.id}>
-                    {site.domain}
-                  </option>
-                ))}
-              </select>
-              {sites.length === 0 && (
-                <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-                  No sites found
-                </p>
-              )}
-            </div>
-          )}
 
           {targetType === 'database' && (
             <div>

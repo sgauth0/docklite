@@ -26,8 +26,8 @@ export default async function DashboardLayout({
       <DashboardNav user={user} />
 
       {/* Customizable Sidebars - Overlay style, don't push content */}
-      <SidebarPanel side="left" defaultContent="none" />
-      <SidebarPanel side="right" defaultContent="none" />
+      <SidebarPanel side="left" mode="file-browser" defaultOpen userSession={user} />
+      <SidebarPanel side="right" mode="modular" defaultContent="none" />
 
       {/* Main content area - keeps existing width */}
       <main className="p-8 relative z-10">

@@ -182,13 +182,43 @@ export async function getContainerStats(id: string): Promise<ContainerStats | nu
 // ============================================
 
 export async function createContainer(config: Docker.ContainerCreateOptions): Promise<string> {
+  const networkMode = config.HostConfig?.NetworkMode;
+  if (networkMode && typeof networkMode === 'string') {
+    await ensureNetworkExists(networkMode);
+  }
+
   try {
     const container = await docker.createContainer(config);
     await container.start();
     return container.id;
   } catch (error: any) {
+    const message = String(error?.message || '');
+    if (message.includes('network') && message.includes('not found') && networkMode) {
+      await ensureNetworkExists(networkMode, true);
+      const container = await docker.createContainer(config);
+      await container.start();
+      return container.id;
+    }
     console.error('Error creating container:', error);
     throw new Error(`Failed to create container: ${error.message}`);
+  }
+}
+
+async function ensureNetworkExists(name: string, forceCreate: boolean = false): Promise<void> {
+  try {
+    const networks = await docker.listNetworks({ filters: { name: [name] } });
+    if (!forceCreate && networks.some(network => network.Name === name)) {
+      return;
+    }
+    if (forceCreate || networks.length === 0) {
+      await docker.createNetwork({
+        Name: name,
+        Driver: 'bridge',
+      });
+      console.log(`✓ Created Docker network: ${name}`);
+    }
+  } catch (error) {
+    console.error(`Error ensuring network ${name}:`, error);
   }
 }
 
