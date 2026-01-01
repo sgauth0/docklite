@@ -8,13 +8,15 @@ const docker = new Docker({ socketPath: process.env.DOCKER_SOCKET_PATH || '/var/
 // CONTAINER LISTING
 // ============================================
 
-export async function listContainers(all: boolean = true): Promise<ContainerInfo[]> {
+export async function listContainers(managedOnly: boolean = true): Promise<ContainerInfo[]> {
   try {
     const containers = await docker.listContainers({
-      all,
-      filters: {
-        label: ['docklite.managed=true']
-      }
+      all: true,
+      filters: managedOnly
+        ? {
+            label: ['docklite.managed=true'],
+          }
+        : undefined,
     });
 
     return containers.map(container => {

@@ -260,6 +260,11 @@ export function createSite(params: CreateSiteParams): Site {
     values.push(params.container_id);
   }
 
+  if (params.code_path) {
+    columns.push('code_path');
+    values.push(params.code_path);
+  }
+
   const placeholders = values.map(() => '?').join(', ');
   const sql = `INSERT INTO sites (${columns.join(', ')}) VALUES (${placeholders})`;
 

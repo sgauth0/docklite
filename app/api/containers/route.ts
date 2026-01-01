@@ -1,9 +1,20 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { listContainers } from '@/lib/docker';
-import { getFoldersByUser, getContainersByFolder } from '@/lib/db';
+import { createContainer, listContainers, pullImage } from '@/lib/docker';
+import {
+  getFoldersByUser,
+  getContainersByFolder,
+  getSiteByDomain,
+  createSite,
+  updateSiteContainerId,
+  updateSiteStatus,
+} from '@/lib/db';
 import { ContainerInfo, FolderNode } from '@/types';
 import { buildFolderTree } from '@/lib/folder-helpers';
+import { createSiteDirectory, createDefaultIndexFile, getSitePathByUserId } from '@/lib/site-helpers';
+import { generateStaticTemplate } from '@/lib/templates/static';
+import { generatePhpTemplate } from '@/lib/templates/php';
+import { generateNodeTemplate } from '@/lib/templates/node';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,5 +76,108 @@ export async function GET() {
       { error: 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const user = await requireAuth();
+    const body = await request.json();
+    const {
+      domain,
+      template_type,
+      user_id,
+      code_path,
+      folder_id,
+      port,
+      include_www = true,
+    } = body;
+
+    if (!domain || !template_type) {
+      return NextResponse.json({ error: 'Domain and template_type are required' }, { status: 400 });
+    }
+
+    const targetUserId = user.isAdmin && user_id ? Number(user_id) : user.userId;
+
+    const existing = getSiteByDomain(domain);
+    if (existing && existing.container_id) {
+      return NextResponse.json({ error: 'Domain already exists' }, { status: 409 });
+    }
+
+    // Prepare site directory and code path
+    const sitePath = code_path || getSitePathByUserId(targetUserId, domain);
+    await createSiteDirectory(user.username, domain);
+    if (!code_path) {
+      await createDefaultIndexFile(sitePath, domain, template_type);
+    }
+
+    // Create DB record
+    const site = createSite({
+      domain,
+      template_type,
+      user_id: targetUserId,
+      code_path: sitePath,
+      folder_id: folder_id || null,
+    });
+
+    try {
+      // Pull image and create container
+      if (template_type === 'static') {
+        await pullImage('nginx:alpine');
+        const config = generateStaticTemplate({
+          domain,
+          codePath: sitePath,
+          siteId: site.id,
+          userId: targetUserId,
+          folderId: folder_id,
+          includeWww: include_www,
+        });
+        const containerId = await createContainer(config);
+        updateSiteContainerId(site.id, containerId);
+        updateSiteStatus(site.id, 'running');
+      } else if (template_type === 'php') {
+        await pullImage('webdevops/php-nginx:8.2-alpine');
+        const config = generatePhpTemplate({
+          domain,
+          codePath: sitePath,
+          siteId: site.id,
+          userId: targetUserId,
+          folderId: folder_id,
+          includeWww: include_www,
+        });
+        const containerId = await createContainer(config);
+        updateSiteContainerId(site.id, containerId);
+        updateSiteStatus(site.id, 'running');
+      } else if (template_type === 'node') {
+        await pullImage('node:20-alpine');
+        const config = generateNodeTemplate({
+          domain,
+          codePath: sitePath,
+          siteId: site.id,
+          userId: targetUserId,
+          folderId: folder_id,
+          port,
+          includeWww: include_www,
+        });
+        const containerId = await createContainer(config);
+        updateSiteContainerId(site.id, containerId);
+        updateSiteStatus(site.id, 'running');
+      } else {
+        throw new Error('Unsupported template type');
+      }
+
+      return NextResponse.json({ success: true, site_id: site.id });
+    } catch (error: any) {
+      // Rollback DB record on failure
+      updateSiteStatus(site.id, 'failed');
+      console.error('Error creating site container:', error);
+      return NextResponse.json({ error: error.message || 'Failed to create container' }, { status: 500 });
+    }
+  } catch (error: any) {
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    console.error('Error creating site:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

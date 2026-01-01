@@ -11,7 +11,8 @@ import FolderSection from './components/FolderSection';
 import SkeletonLoader from './components/SkeletonLoader';
 import SslStatus from './components/SslStatus';
 import { useToast } from '@/lib/hooks/useToast';
-import { Flower, Database, Lightning, Package, ArrowsClockwise, FolderPlus } from '@phosphor-icons/react';
+import { Flower, Database, Lightning, Package, ArrowsClockwise, FolderPlus, PlusCircle } from '@phosphor-icons/react';
+import AddContainerModal from './components/AddContainerModal';
 
 type ContainerType = 'all' | 'sites' | 'databases' | 'other';
 
@@ -24,6 +25,7 @@ export default function DashboardPage() {
   const [showAllContainersModal, setShowAllContainersModal] = useState(false);
   const [showAddFolderModal, setShowAddFolderModal] = useState(false);
   const [subfolderParent, setSubfolderParent] = useState<{ id: number; name: string } | null>(null);
+  const [showAddContainerModal, setShowAddContainerModal] = useState(false);
   const [filterType, setFilterType] = useState<ContainerType>('all');
   const toast = useToast();
 
@@ -251,6 +253,13 @@ export default function DashboardPage() {
             🐳 All Containers
           </button>
           <button
+            onClick={() => setShowAddContainerModal(true)}
+            className="btn-neon inline-flex items-center gap-2"
+          >
+            <PlusCircle size={20} weight="duotone" />
+            New Container
+          </button>
+          <button
             onClick={() => setShowAddFolderModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all hover:scale-105"
             style={{
@@ -357,6 +366,14 @@ export default function DashboardPage() {
 
       {showAllContainersModal && (
         <AllContainersModal onClose={() => setShowAllContainersModal(false)} />
+      )}
+      {showAddContainerModal && (
+        <AddContainerModal
+          onClose={() => setShowAddContainerModal(false)}
+          onCreated={() => {
+            fetchData();
+          }}
+        />
       )}
 
       {showAddFolderModal && (
