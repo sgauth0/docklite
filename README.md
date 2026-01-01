@@ -14,7 +14,10 @@ A minimal Docker-based web hosting control panel built with Next.js.
 ## Screenshots
 
 ![DockLite Dashboard](public/screenshots/docklite1.png)
-![DockLite Backups](public/screenshots/docklite2.png)
+![DockLite Containers](public/screenshots/docklite2.png)
+![DockLite Backups](public/screenshots/docklite3.png)
+![DockLite Users](public/screenshots/docklite4.png)
+![DockLite Settings](public/screenshots/docklite5.png)
 
 ## Tech Stack
 
@@ -49,7 +52,7 @@ npm start
 
 - **URL**: http://YOUR_VPS_IP:3000
 - **Default Login**:
-  - Username: `admin`
+  - Username: `superadmin`
   - Password: `admin`
 
 **IMPORTANT**: Change the default admin password in production!
