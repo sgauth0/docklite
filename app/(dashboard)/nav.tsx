@@ -162,9 +162,11 @@ export default function DashboardNav({ user }: { user: UserSession }) {
               >
                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-xl relative" style={{ background: 'rgba(255, 16, 240, 0.2)' }}>
                   👤
-                  {user.isAdmin && (
+                  {user.role === 'super_admin' ? (
+                    <span className="absolute -top-1 -right-1 text-xs">👑✨</span>
+                  ) : user.isAdmin ? (
                     <span className="absolute -top-1 -right-1 text-xs">👑</span>
-                  )}
+                  ) : null}
                 </div>
               </button>
 
@@ -183,10 +185,14 @@ export default function DashboardNav({ user }: { user: UserSession }) {
                   <div className="p-4 border-b border-purple-500/20">
                     <div className="font-bold text-cyan-300 flex items-center gap-2">
                       {user.username}
-                      {user.isAdmin && <span className="text-sm">👑</span>}
+                      {user.role === 'super_admin' ? (
+                        <span className="text-sm">👑✨</span>
+                      ) : user.isAdmin ? (
+                        <span className="text-sm">👑</span>
+                      ) : null}
                     </div>
                     <div className="text-xs text-purple-300 opacity-70">
-                      {user.isAdmin ? 'Administrator' : 'User'}
+                      {user.role === 'super_admin' ? 'Superadmin' : user.isAdmin ? 'Administrator' : 'User'}
                     </div>
                   </div>
                   <div className="py-2">
@@ -200,22 +206,14 @@ export default function DashboardNav({ user }: { user: UserSession }) {
                     </Link>
                     {user.isAdmin && (
                       <Link
-                        href="/users"
+                        href="/settings/users"
                         className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-cyan-300 hover:bg-gradient-to-r hover:from-purple-900/50 hover:to-cyan-900/50 hover:text-cyan-100 transition-all group"
                         onClick={() => setIsDropdownOpen(false)}
                       >
                         <span className="group-hover:scale-110 transition-transform">👥</span>
-                        <span>Edit Users</span>
+                        <span>Users</span>
                       </Link>
                     )}
-                    <Link
-                      href="/settings/password"
-                      className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-cyan-300 hover:bg-gradient-to-r hover:from-purple-900/50 hover:to-cyan-900/50 hover:text-cyan-100 transition-all group"
-                      onClick={() => setIsDropdownOpen(false)}
-                    >
-                      <span className="group-hover:scale-110 transition-transform">🔐</span>
-                      <span>Change Password</span>
-                    </Link>
                   </div>
                 </div>
               )}

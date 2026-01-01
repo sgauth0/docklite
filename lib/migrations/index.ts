@@ -16,6 +16,8 @@ import * as migration007 from './007_create_backups_system';
 import * as migration008 from './008_create_dns_system';
 import * as migration009 from './009_add_container_positions';
 import * as migration010 from './010_add_nested_folders';
+import * as migration011 from './011_promote_admin_super_admin';
+import * as migration012 from './012_rename_admin_user';
 
 const allMigrations: Migration[] = [
   migration001,
@@ -28,6 +30,8 @@ const allMigrations: Migration[] = [
   migration008,
   migration009,
   migration010,
+  migration011,
+  migration012,
 ];
 
 function ensureMigrationsTable(db: Database.Database): void {

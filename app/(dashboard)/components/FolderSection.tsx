@@ -69,10 +69,6 @@ function SortableContainer({
     cursor: 'grab',
   };
 
-  const handleDragStart = (e: React.DragEvent) => {
-    // Empty handler for compatibility
-  };
-
   return (
     <div ref={setNodeRef} style={style} className="relative">
       {/* Drag handle wrapper - apply listeners here */}
@@ -85,7 +81,6 @@ function SortableContainer({
           siteId={siteId}
           onAction={onAction}
           onViewDetails={onViewDetails}
-          onDragStart={handleDragStart}
           onDelete={onDelete}
         />
       </div>

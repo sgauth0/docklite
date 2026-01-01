@@ -9,14 +9,14 @@ interface ContainerCardProps {
   container: ContainerInfo;
   siteId?: number;
   onAction: (containerId: string, action: 'start' | 'stop' | 'restart') => void;
-  onDragStart: (e: React.DragEvent, containerId: string) => void;
   onViewDetails?: (containerId: string, containerName: string) => void;
   onDelete?: (siteId: number, domain: string) => void;
 }
 
-export default function ContainerCard({ container, siteId, onAction, onDragStart, onViewDetails, onDelete }: ContainerCardProps) {
+export default function ContainerCard({ container, siteId, onAction, onViewDetails, onDelete }: ContainerCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const stopDnd = (event: React.PointerEvent) => event.stopPropagation();
 
   const isRunning = container.state === 'running';
   const statusColor = isRunning ? 'var(--neon-green)' : '#ff6b6b';
@@ -55,8 +55,6 @@ export default function ContainerCard({ container, siteId, onAction, onDragStart
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, container.id)}
       className="p-4 rounded-xl cursor-move transition-all hover:scale-[1.02] group relative h-[340px] flex flex-col"
       style={{
         background: 'rgba(10, 5, 20, 0.3)',
@@ -81,6 +79,7 @@ export default function ContainerCard({ container, siteId, onAction, onDragStart
             e.stopPropagation();
             setMenuOpen(!menuOpen);
           }}
+          onPointerDown={stopDnd}
           className="p-2 rounded-lg text-sm font-bold transition-all hover:scale-105"
           style={{
             background: 'transparent',
@@ -116,6 +115,7 @@ export default function ContainerCard({ container, siteId, onAction, onDragStart
                   setMenuOpen(false);
                   onDelete(siteId, container.labels?.['docklite.domain'] || container.name);
                 }}
+                onPointerDown={stopDnd}
                 className="w-full px-4 py-3 text-left text-sm font-bold transition-all hover:bg-red-500/20 flex items-center gap-3"
                 style={{ color: '#ff6b6b' }}
               >
@@ -196,6 +196,7 @@ export default function ContainerCard({ container, siteId, onAction, onDragStart
               e.stopPropagation();
               onAction(container.id, 'start');
             }}
+            onPointerDown={stopDnd}
             className="flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all hover:scale-105 group/btn flex items-center justify-center gap-1"
             style={{
               background: 'transparent',
@@ -219,6 +220,7 @@ export default function ContainerCard({ container, siteId, onAction, onDragStart
                 e.stopPropagation();
                 onAction(container.id, 'restart');
               }}
+              onPointerDown={stopDnd}
               className="flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all hover:scale-105 group/btn flex items-center justify-center"
               style={{
                 background: 'transparent',
@@ -239,6 +241,7 @@ export default function ContainerCard({ container, siteId, onAction, onDragStart
                 e.stopPropagation();
                 onAction(container.id, 'stop');
               }}
+              onPointerDown={stopDnd}
               className="flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all hover:scale-105 group/btn flex items-center justify-center"
               style={{
                 background: 'transparent',
@@ -261,6 +264,7 @@ export default function ContainerCard({ container, siteId, onAction, onDragStart
             e.stopPropagation();
             onViewDetails?.(container.id, container.name);
           }}
+          onPointerDown={stopDnd}
           className="px-4 py-2 rounded-lg text-sm font-bold transition-all hover:scale-105 group/btn flex items-center justify-center"
           style={{
             background: 'transparent',

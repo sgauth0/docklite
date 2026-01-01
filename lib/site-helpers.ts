@@ -1,9 +1,5 @@
 import { getUserById } from './db';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import fs from 'fs/promises';
-
-const execAsync = promisify(exec);
 
 export const SITES_BASE_DIR = '/var/www/sites';
 
@@ -36,22 +32,24 @@ export async function createSiteDirectory(username: string, domain: string): Pro
   console.log(`Attempting to create site directory at: ${sitePath}`);
 
   try {
-    // Create directory with parents
-    console.log(`Executing: mkdir -p "${sitePath}"`);
-    await execAsync(`mkdir -p "${sitePath}"`);
+    await fs.mkdir(sitePath, { recursive: true, mode: 0o755 });
     console.log(`✓ Successfully created directory.`);
 
-    // Set permissions (755 for directories)
-    console.log(`Executing: chmod 755 "${sitePath}"`);
-    await execAsync(`chmod 755 "${sitePath}"`);
-    console.log(`✓ Successfully set directory permissions.`);
+    try {
+      await fs.chmod(sitePath, 0o755);
+      console.log(`✓ Successfully set directory permissions.`);
+    } catch (error) {
+      console.warn(`⚠️ Failed to chmod ${sitePath}, continuing:`, error);
+    }
 
-    // Set ownership to the current user. NOTE: For a multi-user setup,
-    // this should be adjusted, perhaps to a shared group like 'www-data'.
-    const currentUser = process.env.USER || 'www-data';
-    console.log(`Executing: chown -R ${currentUser}:${currentUser} "${sitePath}"`);
-    await execAsync(`chown -R ${currentUser}:${currentUser} "${sitePath}"`);
-    console.log(`✓ Successfully changed directory ownership.`);
+    if (typeof process.getuid === 'function' && typeof process.getgid === 'function') {
+      try {
+        await fs.chown(sitePath, process.getuid(), process.getgid());
+        console.log(`✓ Successfully changed directory ownership.`);
+      } catch (error) {
+        console.warn(`⚠️ Failed to chown ${sitePath}, continuing:`, error);
+      }
+    }
 
     console.log(`✓ Site directory setup complete: ${sitePath}`);
     return sitePath;

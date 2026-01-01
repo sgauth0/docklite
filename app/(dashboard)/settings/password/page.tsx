@@ -55,30 +55,49 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto">
-      <div className="mb-6">
-        <Link href="/" className="text-sm text-blue-600 hover:text-blue-900">
-          ← Back to Dashboard
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold text-gray-900">Change Password</h1>
+    <div className="max-w-[1000px] mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <Link href="/settings" className="cyber-button inline-flex items-center gap-2">
+            ← Back to Settings
+          </Link>
+          <h1 className="mt-2 text-3xl font-bold neon-text-pink">Change Password</h1>
+          <p className="text-xs font-mono mt-2" style={{ color: 'var(--text-secondary)' }}>
+            ▸ Update your account credentials ◂
+          </p>
+        </div>
       </div>
 
-      <div className="bg-white shadow rounded-lg p-6">
+      <div className="cyber-card p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <div
+              className="px-4 py-3 rounded-lg text-sm"
+              style={{
+                background: 'rgba(255, 107, 107, 0.15)',
+                border: '1px solid rgba(255, 107, 107, 0.5)',
+                color: '#ff6b6b',
+              }}
+            >
               {error}
             </div>
           )}
 
           {success && (
-            <div className="bg-green-50 border border-green-400 text-green-700 px-4 py-3 rounded">
+            <div
+              className="px-4 py-3 rounded-lg text-sm"
+              style={{
+                background: 'rgba(57, 255, 20, 0.15)',
+                border: '1px solid rgba(57, 255, 20, 0.5)',
+                color: 'var(--neon-green)',
+              }}
+            >
               Password changed successfully! Redirecting...
             </div>
           )}
 
           <div>
-            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="currentPassword" className="block text-sm font-bold mb-2" style={{ color: 'var(--neon-pink)' }}>
               Current Password
             </label>
             <input
@@ -87,12 +106,12 @@ export default function ChangePasswordPage() {
               required
               value={formData.currentPassword}
               onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="input-vapor w-full"
             />
           </div>
 
           <div>
-            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="newPassword" className="block text-sm font-bold mb-2" style={{ color: 'var(--neon-pink)' }}>
               New Password
             </label>
             <input
@@ -102,13 +121,13 @@ export default function ChangePasswordPage() {
               minLength={6}
               value={formData.newPassword}
               onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="input-vapor w-full"
             />
-            <p className="mt-1 text-sm text-gray-500">Minimum 6 characters</p>
+            <p className="mt-2 text-xs font-mono text-gray-400">Minimum 6 characters</p>
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="confirmPassword" className="block text-sm font-bold mb-2" style={{ color: 'var(--neon-pink)' }}>
               Confirm New Password
             </label>
             <input
@@ -117,21 +136,21 @@ export default function ChangePasswordPage() {
               required
               value={formData.confirmPassword}
               onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="input-vapor w-full"
             />
           </div>
 
-          <div className="flex justify-end space-x-3">
+          <div className="flex justify-end gap-3">
             <Link
               href="/"
-              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="cyber-button-sm"
             >
               Cancel
             </Link>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="cyber-button disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Changing...' : 'Change Password'}
             </button>

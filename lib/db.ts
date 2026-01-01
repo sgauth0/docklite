@@ -119,15 +119,28 @@ async function ensureUserFoldersOnStartup() {
 // Seed initial admin user
 function seedAdminUser() {
   try {
-    const existingAdmin = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
+    const existingSuperAdmin = db.prepare('SELECT id FROM users WHERE username = ?').get('superadmin') as { id: number } | undefined;
+    const existingAdmin = db.prepare('SELECT id FROM users WHERE username = ?').get('admin') as { id: number } | undefined;
 
-    if (!existingAdmin) {
+    if (!existingSuperAdmin && !existingAdmin) {
       const passwordHash = bcrypt.hashSync('admin', 10);
       db.prepare(`
-        INSERT INTO users (username, password_hash, is_admin)
-        VALUES (?, ?, 1)
-      `).run('admin', passwordHash);
-      console.log('✓ Admin user created (username: admin, password: admin)');
+        INSERT INTO users (username, password_hash, is_admin, role, is_super_admin, managed_by)
+        VALUES (?, ?, 1, 'super_admin', 1, NULL)
+      `).run('superadmin', passwordHash);
+      console.log('✓ Superadmin user created (username: superadmin, password: admin)');
+    } else if (existingSuperAdmin) {
+      db.prepare(`
+        UPDATE users
+        SET role = 'super_admin', is_super_admin = 1, is_admin = 1, managed_by = NULL
+        WHERE id = ?
+      `).run(existingSuperAdmin.id);
+    } else if (existingAdmin) {
+      db.prepare(`
+        UPDATE users
+        SET role = 'super_admin', is_super_admin = 1, is_admin = 1, managed_by = NULL
+        WHERE id = ?
+      `).run(existingAdmin.id);
     }
   } catch (error: any) {
     // Ignore UNIQUE constraint errors (admin already exists)
@@ -184,6 +197,17 @@ export function updateUserPassword(userId: number, password: string): void {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, userId);
 }
 
+export function getUserSiteCount(userId: number): number {
+  const row = db.prepare('SELECT COUNT(*) as count FROM sites WHERE user_id = ?').get(userId) as { count: number };
+  return row?.count || 0;
+}
+
+export function deleteUser(userId: number): void {
+  db.prepare('DELETE FROM database_permissions WHERE user_id = ?').run(userId);
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+  db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+}
+
 export function getUsersByManager(managerId: number): User[] {
   return db.prepare(`
     SELECT * FROM users WHERE managed_by = ? ORDER BY created_at DESC
@@ -199,6 +223,11 @@ export function getSitesByUser(userId: number, isAdmin: boolean): Site[] {
     return db.prepare('SELECT * FROM sites ORDER BY created_at DESC').all() as Site[];
   }
   return db.prepare('SELECT * FROM sites WHERE user_id = ? ORDER BY created_at DESC').all(userId) as Site[];
+}
+
+export function transferUserSites(fromUserId: number, toUserId: number): number {
+  const result = db.prepare('UPDATE sites SET user_id = ? WHERE user_id = ?').run(toUserId, fromUserId);
+  return result.changes;
 }
 
 export function getAllSites(): Site[] {

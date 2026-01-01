@@ -48,10 +48,9 @@ export default function AppearanceSettingsPage() {
         </div>
         <Link
           href="/settings"
-          className="btn-neon inline-flex items-center gap-2 px-4 py-2"
+          className="cyber-button inline-flex items-center gap-2"
         >
-          <span>←</span>
-          <span>Back</span>
+          ← Back to Settings
         </Link>
       </div>
 
