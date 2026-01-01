@@ -242,17 +242,6 @@ export default function DashboardPage() {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => setShowAllContainersModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all hover:scale-105"
-            style={{
-              background: 'linear-gradient(135deg, var(--neon-purple) 0%, var(--neon-cyan) 100%)',
-              color: 'white',
-              boxShadow: '0 0 12px rgba(181, 55, 242, 0.4)',
-            }}
-          >
-            🐳 All Containers
-          </button>
-          <button
             onClick={() => setShowAddContainerModal(true)}
             className="btn-neon inline-flex items-center gap-2"
           >
