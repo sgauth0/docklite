@@ -6,11 +6,17 @@ export interface PhpTemplateConfig {
   siteId: number;
   userId: number;
   folderId?: number;
+  includeWww?: boolean;
 }
 
 export function generatePhpTemplate(config: PhpTemplateConfig): Docker.ContainerCreateOptions {
   const containerName = `docklite-site${config.siteId}-${config.domain.replace(/[^a-zA-Z0-9]/g, '-')}`;
   const sanitizedDomain = config.domain.replace(/[^a-zA-Z0-9]/g, '-');
+  const includeWww = config.includeWww ?? true;
+
+  const hostRule = includeWww && !config.domain.startsWith('www.')
+    ? `Host(\`${config.domain}\`,\`www.${config.domain}\`)`
+    : `Host(\`${config.domain}\`)`;
 
   // Using a PHP-FPM + Nginx image for simplicity
   // In production, you might want separate containers
@@ -49,7 +55,7 @@ export function generatePhpTemplate(config: PhpTemplateConfig): Docker.Container
       'docklite.folder.id': config.folderId?.toString() || '',
       // Traefik labels
       'traefik.enable': 'true',
-      [`traefik.http.routers.docklite-${sanitizedDomain}.rule`]: `Host(\`${config.domain}\`)`,
+      [`traefik.http.routers.docklite-${sanitizedDomain}.rule`]: hostRule,
       [`traefik.http.routers.docklite-${sanitizedDomain}.entrypoints`]: 'websecure',
       [`traefik.http.routers.docklite-${sanitizedDomain}.tls`]: 'true',
       [`traefik.http.routers.docklite-${sanitizedDomain}.tls.certresolver`]: 'letsencrypt',

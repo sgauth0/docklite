@@ -6,11 +6,17 @@ export interface StaticTemplateConfig {
   siteId: number;
   userId: number;
   folderId?: number;
+  includeWww?: boolean;
 }
 
 export function generateStaticTemplate(config: StaticTemplateConfig): Docker.ContainerCreateOptions {
   const containerName = `docklite-site${config.siteId}-${config.domain.replace(/[^a-zA-Z0-9]/g, '-')}`;
   const sanitizedDomain = config.domain.replace(/[^a-zA-Z0-9]/g, '-'); // Remove ALL special chars including dots
+  const includeWww = config.includeWww ?? true;
+
+  const hostRule = includeWww && !config.domain.startsWith('www.')
+    ? `Host(\`${config.domain}\`,\`www.${config.domain}\`)`
+    : `Host(\`${config.domain}\`)`;
 
   return {
     Image: 'nginx:alpine',
@@ -39,7 +45,7 @@ export function generateStaticTemplate(config: StaticTemplateConfig): Docker.Con
       'docklite.folder.id': config.folderId?.toString() || '',
       // Traefik labels
       'traefik.enable': 'true',
-      [`traefik.http.routers.docklite-${sanitizedDomain}.rule`]: `Host(\`${config.domain}\`)`,
+      [`traefik.http.routers.docklite-${sanitizedDomain}.rule`]: hostRule,
       [`traefik.http.routers.docklite-${sanitizedDomain}.entrypoints`]: 'websecure',
       [`traefik.http.routers.docklite-${sanitizedDomain}.tls`]: 'true',
       [`traefik.http.routers.docklite-${sanitizedDomain}.tls.certresolver`]: 'letsencrypt',

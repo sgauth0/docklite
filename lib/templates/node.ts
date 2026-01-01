@@ -7,12 +7,18 @@ export interface NodeTemplateConfig {
   userId: number;
   folderId?: number;
   port?: number; // Internal port the Node app listens on (default: 3000)
+  includeWww?: boolean;
 }
 
 export function generateNodeTemplate(config: NodeTemplateConfig): Docker.ContainerCreateOptions {
   const containerName = `docklite-site${config.siteId}-${config.domain.replace(/[^a-zA-Z0-9]/g, '-')}`;
   const sanitizedDomain = config.domain.replace(/[^a-zA-Z0-9]/g, '-');
   const internalPort = config.port || 3000;
+  const includeWww = config.includeWww ?? true;
+
+  const hostRule = includeWww && !config.domain.startsWith('www.')
+    ? `Host(\`${config.domain}\`,\`www.${config.domain}\`)`
+    : `Host(\`${config.domain}\`)`;
 
   return {
     Image: 'node:20-alpine',
@@ -47,7 +53,7 @@ export function generateNodeTemplate(config: NodeTemplateConfig): Docker.Contain
       'docklite.folder.id': config.folderId?.toString() || '',
       // Traefik labels
       'traefik.enable': 'true',
-      [`traefik.http.routers.docklite-${sanitizedDomain}.rule`]: `Host(\`${config.domain}\`)`,
+      [`traefik.http.routers.docklite-${sanitizedDomain}.rule`]: hostRule,
       [`traefik.http.routers.docklite-${sanitizedDomain}.entrypoints`]: 'websecure',
       [`traefik.http.routers.docklite-${sanitizedDomain}.tls`]: 'true',
       [`traefik.http.routers.docklite-${sanitizedDomain}.tls.certresolver`]: 'letsencrypt',
