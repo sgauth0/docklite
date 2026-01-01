@@ -10,7 +10,12 @@ const docker = new Docker({ socketPath: process.env.DOCKER_SOCKET_PATH || '/var/
 
 export async function listContainers(all: boolean = true): Promise<ContainerInfo[]> {
   try {
-    const containers = await docker.listContainers({ all });
+    const containers = await docker.listContainers({
+      all,
+      filters: {
+        label: ['docklite.managed=true']
+      }
+    });
 
     return containers.map(container => {
       const created = new Date(container.Created * 1000);

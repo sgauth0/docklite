@@ -65,6 +65,16 @@
     text-shadow: 0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor;
   }
 
+  .neon-text-pink {
+    color: var(--neon-pink);
+    text-shadow: 0 0 5px var(--neon-pink), 0 0 10px var(--neon-pink);
+  }
+
+  .neon-text-cyan {
+    color: var(--neon-cyan);
+    text-shadow: 0 0 5px var(--neon-cyan), 0 0 10px var(--neon-cyan);
+  }
+
   .neon-border {
     border: 2px solid var(--neon-cyan);
     box-shadow: 0 0 5px var(--neon-cyan), inset 0 0 5px var(--neon-cyan);
@@ -123,6 +133,51 @@
 
   .btn-neon:hover::before {
     left: 100%;
+  }
+
+  .cyber-card {
+    background: linear-gradient(135deg, rgba(26, 10, 46, 0.95) 0%, rgba(10, 5, 30, 0.9) 100%);
+    border: 1px solid rgba(255, 16, 240, 0.3);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  .cyber-button {
+    background: linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-purple) 100%);
+    color: var(--bg-darker);
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    box-shadow: 0 2px 12px rgba(181, 55, 242, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.875rem;
+    border: none;
+    cursor: pointer;
+  }
+
+  .cyber-button:hover {
+    box-shadow: 0 4px 20px rgba(0, 255, 255, 0.5);
+    transform: translateY(-2px);
+  }
+
+  .cyber-button-sm {
+    background: linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-purple) 100%);
+    color: var(--bg-darker);
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    box-shadow: 0 2px 8px rgba(181, 55, 242, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: none;
+    cursor: pointer;
+  }
+
+  .cyber-button-sm:hover {
+    box-shadow: 0 4px 16px rgba(0, 255, 255, 0.5);
+    transform: translateY(-1px);
   }
 
   .input-vapor {

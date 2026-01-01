@@ -71,13 +71,22 @@ export interface Folder {
   id: number;
   user_id: number;
   name: string;
+  parent_folder_id: number | null;
+  depth: number;
+  position: number;
   created_at: string;
+}
+
+export interface FolderNode extends Folder {
+  children: FolderNode[];
+  containers: any[]; // Will be ContainerInfo[] but defined later
 }
 
 export interface FolderContainer {
   id: number;
   folder_id: number;
   container_id: string;
+  position: number;
   created_at: string;
 }
 
@@ -100,4 +109,137 @@ export interface ContainerStats {
     total: number;
     percentage: number;
   };
+}
+
+// Backup types
+export type BackupDestinationType = 'local' | 'sftp' | 's3' | 'gdrive' | 'backblaze';
+export type BackupTargetType = 'site' | 'database' | 'all-sites' | 'all-databases';
+export type BackupStatus = 'success' | 'failed' | 'in_progress';
+
+export interface BackupDestination {
+  id: number;
+  name: string;
+  type: BackupDestinationType;
+  config: string; // JSON string with connection details
+  enabled: number; // SQLite boolean
+  created_at: string;
+}
+
+export interface BackupDestinationConfig {
+  // Local
+  path?: string;
+  // SFTP
+  host?: string;
+  port?: number;
+  username?: string;
+  password?: string;
+  privateKey?: string;
+  remotePath?: string;
+  // S3/Backblaze
+  endpoint?: string;
+  region?: string;
+  bucket?: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  // Google Drive
+  clientId?: string;
+  clientSecret?: string;
+  refreshToken?: string;
+  folderId?: string;
+}
+
+export interface BackupJob {
+  id: number;
+  destination_id: number;
+  target_type: BackupTargetType;
+  target_id: number | null;
+  frequency: string; // cron expression or simple: "daily", "every-3-days", etc.
+  retention_days: number;
+  enabled: number; // SQLite boolean
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_at: string;
+}
+
+export interface Backup {
+  id: number;
+  job_id: number | null;
+  destination_id: number;
+  target_type: 'site' | 'database';
+  target_id: number;
+  backup_path: string;
+  size_bytes: number;
+  status: BackupStatus;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface CreateBackupDestinationParams {
+  name: string;
+  type: BackupDestinationType;
+  config: BackupDestinationConfig;
+  enabled?: number;
+}
+
+export interface CreateBackupJobParams {
+  destination_id: number;
+  target_type: BackupTargetType;
+  target_id?: number | null;
+  frequency: string;
+  retention_days?: number;
+  enabled?: number;
+}
+
+// DNS types
+export type DNSRecordType = 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT' | 'NS' | 'SRV' | 'CAA';
+
+export interface CloudflareConfig {
+  id: number;
+  api_token: string | null;
+  account_id: string | null;
+  enabled: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DNSZone {
+  id: number;
+  domain: string;
+  zone_id: string;
+  account_id: string | null;
+  enabled: number;
+  last_synced_at: string | null;
+  created_at: string;
+}
+
+export interface DNSRecord {
+  id: number;
+  zone_id: number;
+  cloudflare_record_id: string | null;
+  type: DNSRecordType;
+  name: string;
+  content: string;
+  ttl: number;
+  priority: number | null;
+  proxied: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDNSZoneParams {
+  domain: string;
+  zone_id: string;
+  account_id?: string | null;
+  enabled?: number;
+}
+
+export interface CreateDNSRecordParams {
+  zone_id: number;
+  cloudflare_record_id?: string | null;
+  type: DNSRecordType;
+  name: string;
+  content: string;
+  ttl?: number;
+  priority?: number | null;
+  proxied?: number;
 }

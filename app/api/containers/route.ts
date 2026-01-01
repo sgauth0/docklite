@@ -2,14 +2,10 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { listContainers } from '@/lib/docker';
 import { getFoldersByUser, getContainersByFolder } from '@/lib/db';
-import { ContainerInfo, Folder } from '@/types';
+import { ContainerInfo, FolderNode } from '@/types';
+import { buildFolderTree } from '@/lib/folder-helpers';
 
 export const dynamic = 'force-dynamic';
-
-export interface FolderWithContainers {
-  folder: Folder;
-  containers: ContainerInfo[];
-}
 
 export async function GET() {
   try {
@@ -21,8 +17,8 @@ export async function GET() {
     // Get all DockLite-managed containers
     const allContainers = await listContainers(true); // true = only managed containers
 
-    // Build folder structure with containers
-    const foldersWithContainers: FolderWithContainers[] = [];
+    // Build map of containers by folder ID
+    const containersByFolderId = new Map<number, ContainerInfo[]>();
     const assignedContainerIds = new Set<string>();
 
     for (const folder of folders) {
@@ -37,10 +33,7 @@ export async function GET() {
       // Track which containers are assigned
       folderContainers.forEach(c => assignedContainerIds.add(c.id));
 
-      foldersWithContainers.push({
-        folder,
-        containers: folderContainers,
-      });
+      containersByFolderId.set(folder.id, folderContainers);
     }
 
     // Find unassigned containers (containers not in any folder)
@@ -49,14 +42,17 @@ export async function GET() {
     );
 
     // Add unassigned containers to Default folder if it exists
-    const defaultFolder = foldersWithContainers.find(f => f.folder.name === 'Default');
+    const defaultFolder = folders.find(f => f.name === 'Default');
     if (defaultFolder && unassignedContainers.length > 0) {
-      // Add unassigned containers to Default folder display
-      defaultFolder.containers.push(...unassignedContainers);
+      const existing = containersByFolderId.get(defaultFolder.id) || [];
+      containersByFolderId.set(defaultFolder.id, [...existing, ...unassignedContainers]);
     }
 
+    // Build hierarchical folder tree
+    const folderTree = buildFolderTree(folders, containersByFolderId);
+
     return NextResponse.json({
-      folders: foldersWithContainers,
+      folders: folderTree,
       totalContainers: allContainers.length,
     });
 

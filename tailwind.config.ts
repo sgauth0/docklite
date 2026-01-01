@@ -13,6 +13,14 @@ const config: Config = {
       },
       gridTemplateColumns: {
         '8': 'repeat(8, minmax(0, 1fr))',
+      },
+      colors: {
+        'dark-bg': '#0a0a1e',
+        'neon-cyan': '#00ffff',
+        'neon-pink': '#ff10f0',
+        'neon-purple': '#b537f2',
+        'neon-green': '#39ff14',
+        'neon-yellow': '#ffff00',
       }
     },
   },

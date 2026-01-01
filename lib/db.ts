@@ -10,7 +10,18 @@ import {
   DatabasePermission,
   Folder,
   FolderContainer,
-  UserRole
+  UserRole,
+  BackupDestination,
+  BackupJob,
+  Backup,
+  BackupStatus,
+  CreateBackupDestinationParams,
+  CreateBackupJobParams,
+  CloudflareConfig,
+  DNSZone,
+  DNSRecord,
+  CreateDNSZoneParams,
+  CreateDNSRecordParams
 } from '@/types';
 import { runMigrations } from './migrations';
 
@@ -190,6 +201,10 @@ export function getSitesByUser(userId: number, isAdmin: boolean): Site[] {
   return db.prepare('SELECT * FROM sites WHERE user_id = ? ORDER BY created_at DESC').all(userId) as Site[];
 }
 
+export function getAllSites(): Site[] {
+  return db.prepare('SELECT * FROM sites ORDER BY created_at DESC').all() as Site[];
+}
+
 export function getSiteById(id: number, userId: number, isAdmin: boolean): Site | undefined {
   if (isAdmin) {
     return db.prepare('SELECT * FROM sites WHERE id = ?').get(id) as Site | undefined;
@@ -252,6 +267,10 @@ export function getDatabasesByUser(userId: number, isAdmin: boolean): DatabaseTy
 
 export function getDatabaseById(id: number): DatabaseType | undefined {
   return db.prepare('SELECT * FROM databases WHERE id = ?').get(id) as DatabaseType | undefined;
+}
+
+export function getAllDatabases(): DatabaseType[] {
+  return db.prepare('SELECT * FROM databases ORDER BY created_at DESC').all() as DatabaseType[];
 }
 
 export function createDatabase(params: CreateDatabaseParams): DatabaseType {
@@ -318,16 +337,49 @@ export function getDatabasePermissions(databaseId: number): DatabasePermission[]
 // FOLDER FUNCTIONS
 // ============================================
 
-export function createFolder(userId: number, name: string): Folder {
+export function createFolder(userId: number, name: string, parentFolderId?: number): Folder {
+  // Get depth and position based on parent
+  let depth = 0;
+  let position = 0;
+
+  if (parentFolderId) {
+    const parent = getFolderById(parentFolderId);
+    if (parent) {
+      depth = parent.depth + 1;
+
+      // Get next position within parent
+      const maxPos = db.prepare(`
+        SELECT COALESCE(MAX(position), -1) as max_pos
+        FROM folders
+        WHERE user_id = ? AND parent_folder_id = ?
+      `).get(userId, parentFolderId) as { max_pos: number };
+
+      position = maxPos.max_pos + 1;
+    }
+  } else {
+    // Get next position at root level
+    const maxPos = db.prepare(`
+      SELECT COALESCE(MAX(position), -1) as max_pos
+      FROM folders
+      WHERE user_id = ? AND parent_folder_id IS NULL
+    `).get(userId) as { max_pos: number };
+
+    position = maxPos.max_pos + 1;
+  }
+
   const result = db.prepare(`
-    INSERT INTO folders (user_id, name) VALUES (?, ?)
-  `).run(userId, name);
+    INSERT INTO folders (user_id, name, parent_folder_id, depth, position)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(userId, name, parentFolderId || null, depth, position);
+
   return getFolderById(result.lastInsertRowid as number)!;
 }
 
 export function getFoldersByUser(userId: number): Folder[] {
   return db.prepare(`
-    SELECT * FROM folders WHERE user_id = ? ORDER BY name
+    SELECT * FROM folders
+    WHERE user_id = ?
+    ORDER BY parent_folder_id NULLS FIRST, position ASC
   `).all(userId) as Folder[];
 }
 
@@ -342,10 +394,19 @@ export function deleteFolder(id: number): void {
 
 export function linkContainerToFolder(folderId: number, containerId: string): void {
   try {
+    // Get the max position for this folder
+    const maxPosition = db.prepare(`
+      SELECT COALESCE(MAX(position), -1) as max_pos
+      FROM folder_containers
+      WHERE folder_id = ?
+    `).get(folderId) as { max_pos: number };
+
+    const newPosition = maxPosition.max_pos + 1;
+
     db.prepare(`
-      INSERT OR IGNORE INTO folder_containers (folder_id, container_id)
-      VALUES (?, ?)
-    `).run(folderId, containerId);
+      INSERT OR IGNORE INTO folder_containers (folder_id, container_id, position)
+      VALUES (?, ?, ?)
+    `).run(folderId, containerId, newPosition);
   } catch (error) {
     // Ignore if already linked
   }
@@ -359,7 +420,9 @@ export function unlinkContainerFromFolder(folderId: number, containerId: string)
 
 export function getContainersByFolder(folderId: number): string[] {
   const rows = db.prepare(`
-    SELECT container_id FROM folder_containers WHERE folder_id = ?
+    SELECT container_id FROM folder_containers
+    WHERE folder_id = ?
+    ORDER BY position ASC
   `).all(folderId) as Array<{container_id: string}>;
   return rows.map(r => r.container_id);
 }
@@ -373,13 +436,606 @@ export function getFolderByContainerId(containerId: string): Folder | undefined 
 }
 
 export function moveContainerToFolder(containerId: string, targetFolderId: number): void {
-  // Remove from all folders first
-  db.prepare(`
-    DELETE FROM folder_containers WHERE container_id = ?
-  `).run(containerId);
+  const transaction = db.transaction(() => {
+    // Get source folder and position
+    const sourceLink = db.prepare(`
+      SELECT folder_id, position FROM folder_containers WHERE container_id = ?
+    `).get(containerId) as { folder_id: number; position: number } | undefined;
 
-  // Add to target folder
-  linkContainerToFolder(targetFolderId, containerId);
+    // Remove from source folder
+    db.prepare(`
+      DELETE FROM folder_containers WHERE container_id = ?
+    `).run(containerId);
+
+    // Reindex remaining containers in source folder
+    if (sourceLink) {
+      db.prepare(`
+        UPDATE folder_containers
+        SET position = position - 1
+        WHERE folder_id = ? AND position > ?
+      `).run(sourceLink.folder_id, sourceLink.position);
+    }
+
+    // Add to target folder at the end
+    linkContainerToFolder(targetFolderId, containerId);
+  });
+
+  transaction();
+}
+
+export function reorderContainerInFolder(folderId: number, containerId: string, newPosition: number): void {
+  const transaction = db.transaction(() => {
+    // Get current position
+    const currentLink = db.prepare(`
+      SELECT position FROM folder_containers
+      WHERE folder_id = ? AND container_id = ?
+    `).get(folderId, containerId) as { position: number } | undefined;
+
+    if (!currentLink) {
+      throw new Error('Container not found in folder');
+    }
+
+    const oldPosition = currentLink.position;
+
+    // Get total count to clamp newPosition
+    const countResult = db.prepare(`
+      SELECT COUNT(*) as count FROM folder_containers WHERE folder_id = ?
+    `).get(folderId) as { count: number };
+
+    // Clamp newPosition to valid range
+    const clampedPosition = Math.max(0, Math.min(newPosition, countResult.count - 1));
+
+    if (oldPosition === clampedPosition) {
+      return; // No change needed
+    }
+
+    if (oldPosition < clampedPosition) {
+      // Moving down: shift items between old and new position up
+      db.prepare(`
+        UPDATE folder_containers
+        SET position = position - 1
+        WHERE folder_id = ? AND position > ? AND position <= ?
+      `).run(folderId, oldPosition, clampedPosition);
+    } else {
+      // Moving up: shift items between new and old position down
+      db.prepare(`
+        UPDATE folder_containers
+        SET position = position + 1
+        WHERE folder_id = ? AND position >= ? AND position < ?
+      `).run(folderId, clampedPosition, oldPosition);
+    }
+
+    // Update the target container's position
+    db.prepare(`
+      UPDATE folder_containers
+      SET position = ?
+      WHERE folder_id = ? AND container_id = ?
+    `).run(clampedPosition, folderId, containerId);
+  });
+
+  transaction();
+}
+
+// Update descendant depths recursively when a folder is moved
+function updateDescendantDepths(folderId: number, newDepth: number): void {
+  // Get all direct children
+  const children = db.prepare(`
+    SELECT id FROM folders WHERE parent_folder_id = ?
+  `).all(folderId) as { id: number }[];
+
+  for (const child of children) {
+    const childDepth = newDepth + 1;
+
+    // Update child depth
+    db.prepare(`
+      UPDATE folders SET depth = ? WHERE id = ?
+    `).run(childDepth, child.id);
+
+    // Recursively update grandchildren
+    updateDescendantDepths(child.id, childDepth);
+  }
+}
+
+export function moveFolderToParent(folderId: number, newParentId: number | null): void {
+  const transaction = db.transaction(() => {
+    const folder = getFolderById(folderId);
+    if (!folder) throw new Error('Folder not found');
+
+    // Calculate new depth
+    let newDepth = 0;
+    if (newParentId) {
+      const newParent = getFolderById(newParentId);
+      if (!newParent) throw new Error('Parent folder not found');
+      newDepth = newParent.depth + 1;
+    }
+
+    // Prevent nesting beyond depth 1 (2 layers total)
+    if (newDepth > 1) {
+      throw new Error('Maximum nesting depth is 2 layers');
+    }
+
+    // Get current position to reindex old siblings
+    const oldParentId = folder.parent_folder_id;
+    const oldPosition = folder.position;
+
+    // Get next position in new parent
+    const maxPos = db.prepare(`
+      SELECT COALESCE(MAX(position), -1) as max_pos
+      FROM folders
+      WHERE user_id = ? AND ${newParentId ? 'parent_folder_id = ?' : 'parent_folder_id IS NULL'}
+    `).get(newParentId ? [folder.user_id, newParentId] : [folder.user_id]) as { max_pos: number };
+
+    const newPosition = maxPos.max_pos + 1;
+
+    // Update folder's parent, depth, and position
+    db.prepare(`
+      UPDATE folders
+      SET parent_folder_id = ?, depth = ?, position = ?
+      WHERE id = ?
+    `).run(newParentId, newDepth, newPosition, folderId);
+
+    // Update all descendant depths
+    updateDescendantDepths(folderId, newDepth);
+
+    // Reindex old siblings
+    if (oldParentId) {
+      db.prepare(`
+        UPDATE folders
+        SET position = position - 1
+        WHERE user_id = ? AND parent_folder_id = ? AND position > ?
+      `).run(folder.user_id, oldParentId, oldPosition);
+    } else {
+      db.prepare(`
+        UPDATE folders
+        SET position = position - 1
+        WHERE user_id = ? AND parent_folder_id IS NULL AND position > ?
+      `).run(folder.user_id, oldPosition);
+    }
+  });
+
+  transaction();
+}
+
+export function reorderFolder(folderId: number, newPosition: number): void {
+  const transaction = db.transaction(() => {
+    const folder = getFolderById(folderId);
+    if (!folder) throw new Error('Folder not found');
+
+    const oldPosition = folder.position;
+
+    // Get total count of siblings
+    const countResult = db.prepare(`
+      SELECT COUNT(*) as count
+      FROM folders
+      WHERE user_id = ? AND ${folder.parent_folder_id ? 'parent_folder_id = ?' : 'parent_folder_id IS NULL'}
+    `).get(folder.parent_folder_id ? [folder.user_id, folder.parent_folder_id] : [folder.user_id]) as { count: number };
+
+    // Clamp position
+    const clampedPosition = Math.max(0, Math.min(newPosition, countResult.count - 1));
+
+    if (oldPosition === clampedPosition) return;
+
+    if (oldPosition < clampedPosition) {
+      // Moving down
+      db.prepare(`
+        UPDATE folders
+        SET position = position - 1
+        WHERE user_id = ? AND ${folder.parent_folder_id ? 'parent_folder_id = ?' : 'parent_folder_id IS NULL'}
+          AND position > ? AND position <= ?
+      `).run(folder.parent_folder_id ? [folder.user_id, folder.parent_folder_id, oldPosition, clampedPosition] : [folder.user_id, oldPosition, clampedPosition]);
+    } else {
+      // Moving up
+      db.prepare(`
+        UPDATE folders
+        SET position = position + 1
+        WHERE user_id = ? AND ${folder.parent_folder_id ? 'parent_folder_id = ?' : 'parent_folder_id IS NULL'}
+          AND position >= ? AND position < ?
+      `).run(folder.parent_folder_id ? [folder.user_id, folder.parent_folder_id, clampedPosition, oldPosition] : [folder.user_id, clampedPosition, oldPosition]);
+    }
+
+    // Update target folder position
+    db.prepare(`
+      UPDATE folders SET position = ? WHERE id = ?
+    `).run(clampedPosition, folderId);
+  });
+
+  transaction();
+}
+
+// ============================================
+// BACKUP DESTINATIONS
+// ============================================
+
+export function createBackupDestination(params: CreateBackupDestinationParams): number {
+  const { name, type, config, enabled = 1 } = params;
+  const result = db.prepare(`
+    INSERT INTO backup_destinations (name, type, config, enabled)
+    VALUES (?, ?, ?, ?)
+  `).run(name, type, JSON.stringify(config), enabled);
+  return result.lastInsertRowid as number;
+}
+
+export function getBackupDestinations(): BackupDestination[] {
+  return db.prepare(`SELECT * FROM backup_destinations ORDER BY created_at DESC`).all() as BackupDestination[];
+}
+
+export function getBackupDestinationById(id: number): BackupDestination | undefined {
+  return db.prepare(`SELECT * FROM backup_destinations WHERE id = ?`).get(id) as BackupDestination | undefined;
+}
+
+export function updateBackupDestination(id: number, params: Partial<CreateBackupDestinationParams>): void {
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (params.name !== undefined) {
+    fields.push('name = ?');
+    values.push(params.name);
+  }
+  if (params.type !== undefined) {
+    fields.push('type = ?');
+    values.push(params.type);
+  }
+  if (params.config !== undefined) {
+    fields.push('config = ?');
+    values.push(JSON.stringify(params.config));
+  }
+  if (params.enabled !== undefined) {
+    fields.push('enabled = ?');
+    values.push(params.enabled);
+  }
+
+  if (fields.length > 0) {
+    values.push(id);
+    db.prepare(`UPDATE backup_destinations SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  }
+}
+
+export function deleteBackupDestination(id: number): void {
+  db.prepare(`DELETE FROM backup_destinations WHERE id = ?`).run(id);
+}
+
+// ============================================
+// BACKUP JOBS
+// ============================================
+
+export function createBackupJob(params: CreateBackupJobParams): number {
+  const { destination_id, target_type, target_id = null, frequency, retention_days = 30, enabled = 1 } = params;
+  const result = db.prepare(`
+    INSERT INTO backup_jobs (destination_id, target_type, target_id, frequency, retention_days, enabled)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(destination_id, target_type, target_id, frequency, retention_days, enabled);
+  return result.lastInsertRowid as number;
+}
+
+export function getBackupJobs(): BackupJob[] {
+  return db.prepare(`SELECT * FROM backup_jobs ORDER BY created_at DESC`).all() as BackupJob[];
+}
+
+export function getBackupJobById(id: number): BackupJob | undefined {
+  return db.prepare(`SELECT * FROM backup_jobs WHERE id = ?`).get(id) as BackupJob | undefined;
+}
+
+export function getBackupJobsByDestination(destinationId: number): BackupJob[] {
+  return db.prepare(`SELECT * FROM backup_jobs WHERE destination_id = ? ORDER BY created_at DESC`).all(destinationId) as BackupJob[];
+}
+
+export function getEnabledBackupJobs(): BackupJob[] {
+  return db.prepare(`SELECT * FROM backup_jobs WHERE enabled = 1`).all() as BackupJob[];
+}
+
+export function updateBackupJob(id: number, params: Partial<CreateBackupJobParams>): void {
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (params.destination_id !== undefined) {
+    fields.push('destination_id = ?');
+    values.push(params.destination_id);
+  }
+  if (params.target_type !== undefined) {
+    fields.push('target_type = ?');
+    values.push(params.target_type);
+  }
+  if (params.target_id !== undefined) {
+    fields.push('target_id = ?');
+    values.push(params.target_id);
+  }
+  if (params.frequency !== undefined) {
+    fields.push('frequency = ?');
+    values.push(params.frequency);
+  }
+  if (params.retention_days !== undefined) {
+    fields.push('retention_days = ?');
+    values.push(params.retention_days);
+  }
+  if (params.enabled !== undefined) {
+    fields.push('enabled = ?');
+    values.push(params.enabled);
+  }
+
+  if (fields.length > 0) {
+    values.push(id);
+    db.prepare(`UPDATE backup_jobs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  }
+}
+
+export function updateBackupJobRunTime(id: number, nextRunAt: string | null = null): void {
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE backup_jobs
+    SET last_run_at = ?, next_run_at = ?
+    WHERE id = ?
+  `).run(now, nextRunAt, id);
+}
+
+export function deleteBackupJob(id: number): void {
+  db.prepare(`DELETE FROM backup_jobs WHERE id = ?`).run(id);
+}
+
+// ============================================
+// BACKUPS (History)
+// ============================================
+
+export function createBackup(params: {
+  job_id: number | null;
+  destination_id: number;
+  target_type: 'site' | 'database';
+  target_id: number;
+  backup_path: string;
+  size_bytes?: number;
+  status?: BackupStatus;
+  error_message?: string | null;
+}): number {
+  const {
+    job_id,
+    destination_id,
+    target_type,
+    target_id,
+    backup_path,
+    size_bytes = 0,
+    status = 'in_progress',
+    error_message = null
+  } = params;
+
+  const result = db.prepare(`
+    INSERT INTO backups (job_id, destination_id, target_type, target_id, backup_path, size_bytes, status, error_message)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(job_id, destination_id, target_type, target_id, backup_path, size_bytes, status, error_message);
+  return result.lastInsertRowid as number;
+}
+
+export function getBackups(limit: number = 100): Backup[] {
+  return db.prepare(`SELECT * FROM backups ORDER BY created_at DESC LIMIT ?`).all(limit) as Backup[];
+}
+
+export function getBackupById(id: number): Backup | undefined {
+  return db.prepare(`SELECT * FROM backups WHERE id = ?`).get(id) as Backup | undefined;
+}
+
+export function getBackupsByJob(jobId: number, limit: number = 50): Backup[] {
+  return db.prepare(`
+    SELECT * FROM backups WHERE job_id = ? ORDER BY created_at DESC LIMIT ?
+  `).all(jobId, limit) as Backup[];
+}
+
+export function getBackupsByTarget(targetType: 'site' | 'database', targetId: number, limit: number = 50): Backup[] {
+  return db.prepare(`
+    SELECT * FROM backups
+    WHERE target_type = ? AND target_id = ?
+    ORDER BY created_at DESC LIMIT ?
+  `).all(targetType, targetId, limit) as Backup[];
+}
+
+export function updateBackupStatus(
+  id: number,
+  status: BackupStatus,
+  errorMessage?: string | null,
+  sizeBytes?: number,
+  backupPath?: string | null
+): void {
+  const fields = ['status = ?'];
+  const values: any[] = [status];
+
+  if (errorMessage !== undefined) {
+    fields.push('error_message = ?');
+    values.push(errorMessage);
+  }
+  if (sizeBytes !== undefined) {
+    fields.push('size_bytes = ?');
+    values.push(sizeBytes);
+  }
+  if (backupPath !== undefined) {
+    fields.push('backup_path = ?');
+    values.push(backupPath);
+  }
+
+  values.push(id);
+  db.prepare(`UPDATE backups SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+export function deleteBackup(id: number): void {
+  db.prepare(`DELETE FROM backups WHERE id = ?`).run(id);
+}
+
+export function clearBackupHistory(): number {
+  const result = db.prepare(`DELETE FROM backups`).run();
+  return result.changes;
+}
+
+export function deleteOldBackups(destinationId: number, retentionDays: number): number {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+  const result = db.prepare(`
+    DELETE FROM backups
+    WHERE destination_id = ? AND created_at < ? AND status = 'success'
+  `).run(destinationId, cutoffDate.toISOString());
+
+  return result.changes;
+}
+
+// =======================
+// DNS Management Functions
+// =======================
+
+// Cloudflare Config
+export function getCloudflareConfig(): CloudflareConfig | null {
+  return db.prepare('SELECT * FROM cloudflare_config WHERE id = 1').get() as CloudflareConfig | null;
+}
+
+export function updateCloudflareConfig(apiToken?: string, accountId?: string, enabled?: number): void {
+  const fields: string[] = ['updated_at = CURRENT_TIMESTAMP'];
+  const values: any[] = [];
+
+  if (apiToken !== undefined) {
+    fields.push('api_token = ?');
+    values.push(apiToken);
+  }
+  if (accountId !== undefined) {
+    fields.push('account_id = ?');
+    values.push(accountId);
+  }
+  if (enabled !== undefined) {
+    fields.push('enabled = ?');
+    values.push(enabled);
+  }
+
+  values.push(1);
+  db.prepare(`UPDATE cloudflare_config SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+// DNS Zones
+export function getDNSZones(): DNSZone[] {
+  return db.prepare('SELECT * FROM dns_zones ORDER BY domain').all() as DNSZone[];
+}
+
+export function getDNSZoneById(id: number): DNSZone | null {
+  return db.prepare('SELECT * FROM dns_zones WHERE id = ?').get(id) as DNSZone | null;
+}
+
+export function getDNSZoneByDomain(domain: string): DNSZone | null {
+  return db.prepare('SELECT * FROM dns_zones WHERE domain = ?').get(domain) as DNSZone | null;
+}
+
+export function createDNSZone(params: CreateDNSZoneParams): number {
+  const result = db.prepare(`
+    INSERT INTO dns_zones (domain, zone_id, account_id, enabled)
+    VALUES (?, ?, ?, ?)
+  `).run(
+    params.domain,
+    params.zone_id,
+    params.account_id || null,
+    params.enabled !== undefined ? params.enabled : 1
+  );
+  return result.lastInsertRowid as number;
+}
+
+export function updateDNSZone(id: number, updates: Partial<CreateDNSZoneParams>): void {
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (updates.domain) {
+    fields.push('domain = ?');
+    values.push(updates.domain);
+  }
+  if (updates.zone_id) {
+    fields.push('zone_id = ?');
+    values.push(updates.zone_id);
+  }
+  if (updates.account_id !== undefined) {
+    fields.push('account_id = ?');
+    values.push(updates.account_id);
+  }
+  if (updates.enabled !== undefined) {
+    fields.push('enabled = ?');
+    values.push(updates.enabled);
+  }
+
+  if (fields.length === 0) return;
+
+  values.push(id);
+  db.prepare(`UPDATE dns_zones SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+export function updateDNSZoneSyncTime(id: number): void {
+  db.prepare('UPDATE dns_zones SET last_synced_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+}
+
+export function deleteDNSZone(id: number): void {
+  db.prepare('DELETE FROM dns_zones WHERE id = ?').run(id);
+}
+
+// DNS Records
+export function getDNSRecords(zoneId?: number): DNSRecord[] {
+  if (zoneId) {
+    return db.prepare('SELECT * FROM dns_records WHERE zone_id = ? ORDER BY type, name').all(zoneId) as DNSRecord[];
+  }
+  return db.prepare('SELECT * FROM dns_records ORDER BY zone_id, type, name').all() as DNSRecord[];
+}
+
+export function getDNSRecordById(id: number): DNSRecord | null {
+  return db.prepare('SELECT * FROM dns_records WHERE id = ?').get(id) as DNSRecord | null;
+}
+
+export function createDNSRecord(params: CreateDNSRecordParams): number {
+  const result = db.prepare(`
+    INSERT INTO dns_records (zone_id, cloudflare_record_id, type, name, content, ttl, priority, proxied)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    params.zone_id,
+    params.cloudflare_record_id || null,
+    params.type,
+    params.name,
+    params.content,
+    params.ttl || 1,
+    params.priority || null,
+    params.proxied || 0
+  );
+  return result.lastInsertRowid as number;
+}
+
+export function updateDNSRecord(id: number, updates: Partial<CreateDNSRecordParams>): void {
+  const fields: string[] = ['updated_at = CURRENT_TIMESTAMP'];
+  const values: any[] = [];
+
+  if (updates.cloudflare_record_id !== undefined) {
+    fields.push('cloudflare_record_id = ?');
+    values.push(updates.cloudflare_record_id);
+  }
+  if (updates.type) {
+    fields.push('type = ?');
+    values.push(updates.type);
+  }
+  if (updates.name) {
+    fields.push('name = ?');
+    values.push(updates.name);
+  }
+  if (updates.content) {
+    fields.push('content = ?');
+    values.push(updates.content);
+  }
+  if (updates.ttl !== undefined) {
+    fields.push('ttl = ?');
+    values.push(updates.ttl);
+  }
+  if (updates.priority !== undefined) {
+    fields.push('priority = ?');
+    values.push(updates.priority);
+  }
+  if (updates.proxied !== undefined) {
+    fields.push('proxied = ?');
+    values.push(updates.proxied);
+  }
+
+  values.push(id);
+  db.prepare(`UPDATE dns_records SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+export function deleteDNSRecord(id: number): void {
+  db.prepare('DELETE FROM dns_records WHERE id = ?').run(id);
+}
+
+export function clearDNSRecords(zoneId: number): void {
+  db.prepare('DELETE FROM dns_records WHERE zone_id = ?').run(zoneId);
 }
 
 // Initialize database on module load

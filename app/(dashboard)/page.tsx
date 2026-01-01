@@ -2,24 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ContainerInfo, Folder } from '@/types';
+import { ContainerInfo, FolderNode } from '@/types';
 import ContainerCard from './components/ContainerCard';
 import ContainerDetailsModal from './components/ContainerDetailsModal';
 import DeleteSiteModal from './components/DeleteSiteModal';
 import AllContainersModal from './components/AllContainersModal';
+import AddFolderModal from './components/AddFolderModal';
 import FolderSection from './components/FolderSection';
 import SkeletonLoader from './components/SkeletonLoader';
+import SslStatus from './components/SslStatus';
 import { useToast } from '@/lib/hooks/useToast';
-
-interface FolderWithContainers {
-  folder: Folder;
-  containers: ContainerInfo[];
-}
+import { Flower, Database, Lightning, Package, Sparkle, ArrowsClockwise, Plus, FolderPlus } from '@phosphor-icons/react';
 
 type ContainerType = 'all' | 'sites' | 'databases' | 'other';
 
 export default function DashboardPage() {
-  const [foldersData, setFoldersData] = useState<FolderWithContainers[]>([]);
+  const [foldersData, setFoldersData] = useState<FolderNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
@@ -27,6 +25,8 @@ export default function DashboardPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [siteToDelete, setSiteToDelete] = useState<{ id: number; domain: string } | null>(null);
   const [showAllContainersModal, setShowAllContainersModal] = useState(false);
+  const [showAddFolderModal, setShowAddFolderModal] = useState(false);
+  const [subfolderParent, setSubfolderParent] = useState<{ id: number; name: string } | null>(null);
   const [filterType, setFilterType] = useState<ContainerType>('all');
   const toast = useToast();
 
@@ -75,11 +75,15 @@ export default function DashboardPage() {
     return 'other';
   };
 
-  const getContainerBadge = (container: ContainerInfo): string => {
+  const getContainerBadge = (container: ContainerInfo): React.ReactNode => {
     const type = getContainerType(container);
-    if (type === 'site') return '🌸';
-    if (type === 'database') return '💾';
-    return '⚡';
+    const iconStyle = {
+      color: '#00ffff',
+      filter: 'drop-shadow(0 0 6px #00ffff80) drop-shadow(0 0 10px #00ffff60)',
+    };
+    if (type === 'site') return <Flower size={32} weight="duotone" style={iconStyle} title="Site" />;
+    if (type === 'database') return <Database size={32} weight="duotone" style={iconStyle} title="Database" />;
+    return <Lightning size={32} weight="duotone" style={iconStyle} title="Utility" />;
   };
 
   const filterContainers = (containers: ContainerInfo[]): ContainerInfo[] => {
@@ -94,11 +98,30 @@ export default function DashboardPage() {
     });
   };
 
-  const totalContainers = foldersData.reduce((acc, f) => acc + f.containers.length, 0);
-  const filteredFolders = foldersData.map(f => ({
-    ...f,
-    containers: filterContainers(f.containers)
-  })).filter(f => f.containers.length > 0);
+  // Recursively count all containers in the tree
+  const countContainers = (nodes: FolderNode[]): number => {
+    return nodes.reduce((total, node) => {
+      return total + node.containers.length + countContainers(node.children);
+    }, 0);
+  };
+
+  // Recursively filter folders and their containers
+  const filterFolderTree = (nodes: FolderNode[]): FolderNode[] => {
+    return nodes.map(node => ({
+      ...node,
+      containers: filterContainers(node.containers),
+      children: filterFolderTree(node.children)
+    })).filter(node => {
+      // Only hide folders if we're actively filtering AND they have no matches
+      if (filterType === 'all') {
+        return true; // Show all folders when not filtering
+      }
+      return node.containers.length > 0 || node.children.length > 0;
+    });
+  };
+
+  const totalContainers = countContainers(foldersData);
+  const filteredFolders = filterFolderTree(foldersData);
 
   const handleDeleteClick = (siteId: number, domain: string) => {
     setSiteToDelete({ id: siteId, domain });
@@ -145,6 +168,50 @@ export default function DashboardPage() {
     }
   };
 
+  const handleContainerReorder = async (folderId: number, containerId: string, newPosition: number) => {
+    try {
+      const res = await fetch(`/api/folders/${folderId}/containers/reorder`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ containerId, newPosition }),
+      });
+
+      if (!res.ok) throw new Error('Failed to reorder container');
+
+      toast.success('Container reordered!');
+    } catch (err: any) {
+      toast.error(`Error: ${err.message || err}`);
+      throw err; // Re-throw so FolderSection can revert
+    }
+  };
+
+  const handleAddSubfolder = (parentId: number, parentName: string) => {
+    setSubfolderParent({ id: parentId, name: parentName });
+    setShowAddFolderModal(true);
+  };
+
+  const handleDeleteFolder = async (folderId: number, folderName: string) => {
+    if (!confirm(`Are you sure you want to delete the folder "${folderName}"? This will also delete all subfolders and their container assignments.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/folders/${folderId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete folder');
+      }
+
+      toast.success(`Folder "${folderName}" deleted successfully!`);
+      fetchData();
+    } catch (err: any) {
+      toast.error(`Error: ${err.message || err}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-[1400px] mx-auto">
@@ -169,8 +236,9 @@ export default function DashboardPage() {
           <div className="text-xl font-bold mb-2" style={{ color: '#ff6b6b' }}>
             System Error Detected
           </div>
-          <button onClick={fetchData} className="btn-neon px-6 py-3 font-bold">
-            🔄 Retry Connection
+          <button onClick={fetchData} className="btn-neon px-6 py-3 font-bold inline-flex items-center gap-2">
+            <ArrowsClockwise size={20} weight="duotone" />
+            Retry Connection
           </button>
         </div>
       </div>
@@ -209,11 +277,24 @@ export default function DashboardPage() {
           >
             🐳 All Containers
           </button>
+          <button
+            onClick={() => setShowAddFolderModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all hover:scale-105"
+            style={{
+              background: 'linear-gradient(135deg, var(--neon-pink) 0%, var(--neon-purple) 100%)',
+              color: 'white',
+              boxShadow: '0 0 12px rgba(217, 15, 217, 0.4)',
+            }}
+          >
+            <FolderPlus size={20} weight="duotone" />
+            New Folder
+          </button>
           <Link
             href="/sites/new"
             className="btn-neon inline-flex items-center gap-2"
           >
-            ✨ Create Site
+            <Plus size={20} weight="duotone" />
+            Create Site
           </Link>
         </div>
       </div>
@@ -230,10 +311,10 @@ export default function DashboardPage() {
             border: '2px solid var(--neon-cyan)',
           }}
         >
-          <option value="all">📦 All Containers</option>
-          <option value="sites">🌸 Sites Only</option>
-          <option value="databases">💾 Databases Only</option>
-          <option value="other">⚡ Other Containers</option>
+          <option value="all">All Containers</option>
+          <option value="sites">Sites Only</option>
+          <option value="databases">Databases Only</option>
+          <option value="other">Other Containers</option>
         </select>
       </div>
 
@@ -243,7 +324,8 @@ export default function DashboardPage() {
             No containers detected
           </p>
           <Link href="/sites/new" className="btn-neon inline-flex items-center gap-2">
-            ✨ Create Your First Site
+            <Sparkle size={20} weight="duotone" />
+            Create Your First Site
           </Link>
         </div>
       ) : filteredFolders.length === 0 ? (
@@ -255,16 +337,16 @@ export default function DashboardPage() {
             onClick={() => setFilterType('all')}
             className="btn-neon inline-flex items-center gap-2"
           >
-            🔄 Show All
+            <ArrowsClockwise size={20} weight="duotone" />
+            Show All
           </button>
         </div>
       ) : (
         <div className="space-y-8">
-          {filteredFolders.map(({ folder, containers }) => (
+          {filteredFolders.map((folderNode) => (
             <FolderSection
-              key={folder.id}
-              folder={folder}
-              containers={containers}
+              key={folderNode.id}
+              folderNode={folderNode}
               getContainerBadge={getContainerBadge}
               onAction={handleAction}
               onViewDetails={(id, name) => {
@@ -274,10 +356,18 @@ export default function DashboardPage() {
               onDelete={handleDeleteClick}
               onRefresh={fetchData}
               onContainerDrop={handleContainerDrop}
+              onContainerReorder={handleContainerReorder}
+              onAddSubfolder={handleAddSubfolder}
+              onDeleteFolder={handleDeleteFolder}
             />
           ))}
         </div>
       )}
+
+      {/* SSL Certificates Status */}
+      <div className="mt-12">
+        <SslStatus />
+      </div>
 
       {selectedContainerId && (
         <ContainerDetailsModal
@@ -300,6 +390,22 @@ export default function DashboardPage() {
 
       {showAllContainersModal && (
         <AllContainersModal onClose={() => setShowAllContainersModal(false)} />
+      )}
+
+      {showAddFolderModal && (
+        <AddFolderModal
+          onClose={() => {
+            setShowAddFolderModal(false);
+            setSubfolderParent(null);
+          }}
+          onSuccess={() => {
+            fetchData();
+            toast.success(subfolderParent ? 'Subfolder created successfully!' : 'Folder created successfully!');
+            setSubfolderParent(null);
+          }}
+          parentFolderId={subfolderParent?.id}
+          parentFolderName={subfolderParent?.name}
+        />
       )}
 
       <toast.ToastContainer />

@@ -28,7 +28,7 @@ export function generateStaticTemplate(config: StaticTemplateConfig): Docker.Con
       RestartPolicy: {
         Name: 'unless-stopped'
       },
-      NetworkMode: 'ioi_docker_imoverit_network' // Connect to Traefik network
+      NetworkMode: 'docklite_network' // Connect to Traefik network
     },
     Labels: {
       'docklite.managed': 'true',

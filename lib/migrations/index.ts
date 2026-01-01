@@ -12,6 +12,10 @@ import * as migration003 from './003_add_site_extensions';
 import * as migration004 from './004_create_folders';
 import * as migration005 from './005_migrate_existing_data';
 import * as migration006 from './006_drop_sessions_table';
+import * as migration007 from './007_create_backups_system';
+import * as migration008 from './008_create_dns_system';
+import * as migration009 from './009_add_container_positions';
+import * as migration010 from './010_add_nested_folders';
 
 const allMigrations: Migration[] = [
   migration001,
@@ -20,6 +24,10 @@ const allMigrations: Migration[] = [
   migration004,
   migration005,
   migration006,
+  migration007,
+  migration008,
+  migration009,
+  migration010,
 ];
 
 function ensureMigrationsTable(db: Database.Database): void {

@@ -11,6 +11,11 @@ A minimal Docker-based web hosting control panel built with Next.js.
 - **Real-time Logs**: View container logs directly in the UI
 - **Resource Monitoring**: CPU and memory usage stats for running containers
 
+## Screenshots
+
+![DockLite Dashboard](public/screenshots/docklite1.png)
+![DockLite Backups](public/screenshots/docklite2.png)
+
 ## Tech Stack
 
 - **Next.js 14** with App Router and TypeScript

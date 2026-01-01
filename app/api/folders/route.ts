@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const user = await requireAuth();
     const body = await request.json();
 
-    const { name } = body;
+    const { name, parentFolderId } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json(
@@ -44,7 +44,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const folder = createFolder(user.userId, name.trim());
+    // Parse optional parentFolderId
+    const parentId = parentFolderId ? parseInt(parentFolderId) : undefined;
+    if (parentFolderId !== undefined && (isNaN(parentId!) || parentId! <= 0)) {
+      return NextResponse.json(
+        { error: 'Invalid parent folder ID' },
+        { status: 400 }
+      );
+    }
+
+    const folder = createFolder(user.userId, name.trim(), parentId);
 
     return NextResponse.json({ folder }, { status: 201 });
   } catch (error: any) {
