@@ -197,6 +197,14 @@ export function updateUserPassword(userId: number, password: string): void {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, userId);
 }
 
+export function clearUserSessions(userId: number): void {
+  try {
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+  } catch (error) {
+    console.error(`Failed to clear sessions for user ${userId}:`, error);
+  }
+}
+
 export function getUserSiteCount(userId: number): number {
   const row = db.prepare('SELECT COUNT(*) as count FROM sites WHERE user_id = ?').get(userId) as { count: number };
   return row?.count || 0;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, requireAuth } from '@/lib/auth';
-import { getUserById, updateUserPassword, verifyPassword } from '@/lib/db';
+import { requireAdmin, requireAuth, getSession } from '@/lib/auth';
+import { clearUserSessions, getUserById, updateUserPassword, verifyPassword } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
         );
       }
       updateUserPassword(targetUserId, newPassword);
+      clearUserSessions(targetUserId);
       return NextResponse.json({ success: true });
     }
 
@@ -59,6 +60,18 @@ export async function POST(request: NextRequest) {
     }
 
     updateUserPassword(user.userId, newPassword);
+    clearUserSessions(user.userId);
+
+    // Refresh current session to keep the user logged in with updated data
+    const session = await getSession();
+    session.user = {
+      userId: user.userId,
+      username: user.username,
+      isAdmin: user.isAdmin,
+      role: user.role,
+    };
+    await session.save();
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     if (error.message === 'Unauthorized' || error.message === 'Forbidden') {
