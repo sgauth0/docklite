@@ -15,22 +15,29 @@ export default function SslStatus() {
   const [sslStatus, setSslStatus] = useState<SslStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchSslStatus = async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch('/api/ssl/status');
+      if (!res.ok) {
+        throw new Error('Failed to fetch SSL status');
+      }
+      const data = await res.json();
+      setSslStatus(data.sites);
+      setError('');
+      setLastChecked(new Date());
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchSslStatus() {
-      try {
-        const res = await fetch('/api/ssl/status');
-        if (!res.ok) {
-          throw new Error('Failed to fetch SSL status');
-        }
-        const data = await res.json();
-        setSslStatus(data.sites);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchSslStatus();
 
     // Refresh every 5 minutes
@@ -110,9 +117,25 @@ export default function SslStatus() {
 
   return (
     <div className="card-vapor p-6">
-      <h2 className="text-2xl font-bold neon-text mb-6" style={{ color: 'var(--neon-cyan)' }}>
-        🔒 SSL Certificates
-      </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <div>
+          <h2 className="text-2xl font-bold neon-text" style={{ color: 'var(--neon-cyan)' }}>
+            🔒 SSL Certificates
+          </h2>
+          {lastChecked && (
+            <div className="text-xs font-mono mt-1" style={{ color: 'var(--text-secondary)' }}>
+              Last checked: {lastChecked.toLocaleTimeString()}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={fetchSslStatus}
+          disabled={refreshing}
+          className="btn-neon px-4 py-2 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {refreshing ? 'Refreshing…' : 'Refresh SSL Status'}
+        </button>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full font-mono text-sm">
           <thead>
