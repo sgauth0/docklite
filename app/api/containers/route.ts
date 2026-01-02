@@ -117,7 +117,22 @@ export async function POST(request: Request) {
     const sitePath = code_path || existing?.code_path || getSitePathByUserId(targetUserId, domain);
     await createSiteDirectory(targetUser.username, domain);
     if (!code_path && !existing) {
-      await createDefaultIndexFile(sitePath, domain, template_type);
+      const fs = await import('fs/promises');
+      const candidateFiles = ['index.html', 'index.php', 'index.js'];
+      const exists = await Promise.all(
+        candidateFiles.map(async (file) => {
+          try {
+            await fs.access(`${sitePath}/${file}`);
+            return true;
+          } catch {
+            return false;
+          }
+        })
+      );
+      const hasIndex = exists.some(Boolean);
+      if (!hasIndex) {
+        await createDefaultIndexFile(sitePath, domain, template_type);
+      }
     }
 
     // Create or reuse DB record
