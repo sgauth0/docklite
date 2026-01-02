@@ -32,15 +32,7 @@ interface SslStatus {
   status: 'valid' | 'expiring' | 'expired' | 'none';
 }
 
-const DEFAULT_ACME_PATHS = [
-  process.env.ACME_PATH,
-  '/var/lib/traefik/acme.json',
-  '/etc/traefik/acme.json',
-  '/home/stella/projects/ioi_docker/traefik/letsencrypt/acme.json',
-  '/home/stella/traefik/letsencrypt/acme.json',
-  '/data/traefik/acme.json',
-  '/letsencrypt/acme.json',
-].filter(Boolean) as string[];
+const DEFAULT_ACME_PATHS = ['/letsencrypt/acme.json'];
 
 async function loadAcme(): Promise<CertificateEntry[] | null> {
   for (const candidate of DEFAULT_ACME_PATHS) {
