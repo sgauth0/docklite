@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { createContainer, listContainers, pullImage, getContainerById } from '@/lib/docker';
+import { createContainer, listContainers, pullImage, getContainerById, removeContainer } from '@/lib/docker';
 import {
   getFoldersByUser,
   getContainersByFolder,
@@ -105,10 +105,11 @@ export async function POST(request: Request) {
     }
 
     const existing = getSiteByDomain(domain);
+    let existingContainerId: string | null = null;
     if (existing && existing.container_id) {
       const existingContainer = await getContainerById(existing.container_id);
       if (existingContainer) {
-        return NextResponse.json({ error: 'Domain already exists' }, { status: 409 });
+        existingContainerId = existing.container_id;
       }
     }
 
@@ -131,6 +132,15 @@ export async function POST(request: Request) {
         });
 
     try {
+      // If an old container exists, remove it to allow recreation
+      if (existingContainerId) {
+        try {
+          await removeContainer(existingContainerId, true);
+        } catch (err) {
+          console.error('Failed to remove existing container before recreate:', err);
+        }
+      }
+
       // Pull image and create container
       if (template_type === 'static') {
         await pullImage('nginx:alpine');

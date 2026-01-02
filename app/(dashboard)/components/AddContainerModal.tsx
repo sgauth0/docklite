@@ -17,7 +17,7 @@ export default function AddContainerModal({ onClose, onCreated }: AddContainerMo
   const [port, setPort] = useState(3000);
   const [includeWww, setIncludeWww] = useState(true);
   const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
+  const toast = useToast();
 
   const handleSubmit = async () => {
     if (!domain.trim()) {
