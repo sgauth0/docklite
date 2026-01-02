@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useToast } from '@/lib/hooks/useToast';
 
 interface SslStatus {
   domain: string;
@@ -17,6 +18,7 @@ export default function SslStatus() {
   const [error, setError] = useState('');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const toast = useToast();
 
   const fetchSslStatus = async () => {
     setRefreshing(true);
@@ -34,6 +36,24 @@ export default function SslStatus() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const repairSsl = async (domain: string) => {
+    try {
+      const res = await fetch('/api/ssl/repair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to trigger repair');
+      }
+      toast.success(`Repair triggered for ${domain}`);
+      fetchSslStatus();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to repair SSL');
     }
   };
 
@@ -149,6 +169,9 @@ export default function SslStatus() {
               <th className="text-left py-3 px-4" style={{ color: 'var(--neon-pink)' }}>
                 EXPIRES
               </th>
+              <th className="text-left py-3 px-4" style={{ color: 'var(--neon-pink)' }}>
+                ACTIONS
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -168,6 +191,14 @@ export default function SslStatus() {
                 </td>
                 <td className="py-3 px-4" style={{ color: 'var(--text-secondary)' }}>
                   {cert.hasSSL ? formatExpiryDate(cert.expiryDate, cert.daysUntilExpiry) : 'No SSL'}
+                </td>
+                <td className="py-3 px-4">
+                  <button
+                    onClick={() => repairSsl(cert.domain)}
+                    className="btn-neon px-3 py-1 text-xs font-bold"
+                  >
+                    Repair SSL
+                  </button>
                 </td>
               </tr>
             ))}
