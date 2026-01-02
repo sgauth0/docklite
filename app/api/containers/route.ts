@@ -9,6 +9,7 @@ import {
   updateSiteContainerId,
   updateSiteStatus,
   getUserById,
+  createFolder,
 } from '@/lib/db';
 import { ContainerInfo, FolderNode } from '@/types';
 import { buildFolderTree } from '@/lib/folder-helpers';
@@ -24,10 +25,21 @@ export async function GET() {
     const user = await requireAuth();
 
     // Get user's folders
-    const folders = getFoldersByUser(user.userId);
+    let folders = getFoldersByUser(user.userId);
+    if (folders.length === 0) {
+      const defaultFolder = createFolder(user.userId, 'Default');
+      folders = [defaultFolder];
+    }
 
     // Get all DockLite-managed containers
-    const allContainers = await listContainers(true); // true = only managed containers
+    let allContainers = await listContainers(true); // true = only managed containers
+
+    // Non-admins only see their own containers
+    if (!user.isAdmin) {
+      allContainers = allContainers.filter(
+        (c) => c.labels?.['docklite.user.id'] === String(user.userId)
+      );
+    }
 
     // Build map of containers by folder ID
     const containersByFolderId = new Map<number, ContainerInfo[]>();
