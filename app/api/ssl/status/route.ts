@@ -34,22 +34,23 @@ interface SslStatus {
 
 const DEFAULT_ACME_PATHS = ['/letsencrypt/acme.json'];
 
-async function loadAcme(): Promise<CertificateEntry[] | null> {
+async function loadAcme(): Promise<{ entries: CertificateEntry[] | null; path: string | null }> {
   for (const candidate of DEFAULT_ACME_PATHS) {
     try {
       const raw = await fs.readFile(candidate, 'utf8');
       const json = JSON.parse(raw);
-      if (json?.letsencrypt?.Certificates) {
-        return json.letsencrypt.Certificates as CertificateEntry[];
-      }
-      if (json?.Certificates) {
-        return json.Certificates as CertificateEntry[];
+      const entries =
+        (json?.letsencrypt?.Certificates as CertificateEntry[] | undefined) ||
+        (json?.Certificates as CertificateEntry[] | undefined) ||
+        null;
+      if (entries) {
+        return { entries, path: candidate };
       }
     } catch {
       // try next path
     }
   }
-  return null;
+  return { entries: null, path: null };
 }
 
 function getHostsFromRule(rule: string): string[] {
@@ -153,7 +154,7 @@ export async function GET() {
       }
     }
 
-    const acmeEntries = await loadAcme();
+    const { entries: acmeEntries, path: acmePath } = await loadAcme();
     const certMap = buildCertMap(acmeEntries);
 
     const statuses: SslStatus[] = [];
@@ -198,7 +199,14 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ sites: statuses });
+    return NextResponse.json({
+      sites: statuses,
+      meta: {
+        acmePath,
+        certCount: certMap.size,
+        hostsFound: uniqueHosts.length,
+      },
+    });
   } catch (error: any) {
     console.error('Error fetching SSL status:', error);
     if (error.message === 'Unauthorized') {

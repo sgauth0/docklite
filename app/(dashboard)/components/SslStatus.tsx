@@ -12,12 +12,19 @@ interface SslStatus {
   status: 'valid' | 'expiring' | 'expired' | 'none';
 }
 
+interface SslMeta {
+  acmePath?: string | null;
+  certCount?: number;
+  hostsFound?: number;
+}
+
 export default function SslStatus() {
   const [sslStatus, setSslStatus] = useState<SslStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [meta, setMeta] = useState<SslMeta | null>(null);
   const toast = useToast();
 
   const fetchSslStatus = async () => {
@@ -28,7 +35,8 @@ export default function SslStatus() {
         throw new Error('Failed to fetch SSL status');
       }
       const data = await res.json();
-      setSslStatus(data.sites);
+      setSslStatus(data.sites || []);
+      setMeta(data.meta || null);
       setError('');
       setLastChecked(new Date());
     } catch (err: any) {
@@ -64,36 +72,6 @@ export default function SslStatus() {
     const interval = setInterval(fetchSslStatus, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
-
-  if (loading) {
-    return (
-      <div className="text-center py-8">
-        <div className="text-sm font-mono" style={{ color: 'var(--text-secondary)' }}>
-          ⟳ Loading SSL status...
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-8">
-        <div className="text-sm font-bold" style={{ color: '#ff6b6b' }}>
-          ❌ Error: {error}
-        </div>
-      </div>
-    );
-  }
-
-  if (sslStatus.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <div className="text-sm font-mono" style={{ color: 'var(--text-secondary)' }}>
-          No SSL certificates found
-        </div>
-      </div>
-    );
-  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -142,9 +120,15 @@ export default function SslStatus() {
           <h2 className="text-2xl font-bold neon-text" style={{ color: 'var(--neon-cyan)' }}>
             🔒 SSL Certificates
           </h2>
-          {lastChecked && (
-            <div className="text-xs font-mono mt-1" style={{ color: 'var(--text-secondary)' }}>
-              Last checked: {lastChecked.toLocaleTimeString()}
+          <div className="text-xs font-mono mt-1 space-y-1" style={{ color: 'var(--text-secondary)' }}>
+            <div>Last checked: {lastChecked ? lastChecked.toLocaleTimeString() : '—'}</div>
+            {meta?.acmePath && <div>ACME: {meta.acmePath}</div>}
+            {typeof meta?.certCount === 'number' && <div>Certs found: {meta.certCount}</div>}
+            {typeof meta?.hostsFound === 'number' && <div>Hosts detected: {meta.hostsFound}</div>}
+          </div>
+          {error && (
+            <div className="text-xs font-bold mt-1" style={{ color: '#ff6b6b' }}>
+              ❌ {error}
             </div>
           )}
         </div>
@@ -156,55 +140,65 @@ export default function SslStatus() {
           {refreshing ? 'Refreshing…' : 'Refresh SSL Status'}
         </button>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full font-mono text-sm">
-          <thead>
-            <tr style={{ borderBottom: '2px solid var(--neon-purple)' }}>
-              <th className="text-left py-3 px-4" style={{ color: 'var(--neon-pink)' }}>
-                DOMAIN
-              </th>
-              <th className="text-left py-3 px-4" style={{ color: 'var(--neon-pink)' }}>
-                STATUS
-              </th>
-              <th className="text-left py-3 px-4" style={{ color: 'var(--neon-pink)' }}>
-                EXPIRES
-              </th>
-              <th className="text-left py-3 px-4" style={{ color: 'var(--neon-pink)' }}>
-                ACTIONS
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sslStatus.map((cert) => (
-              <tr
-                key={cert.domain}
-                className="hover:bg-white/5 transition-colors"
-                style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}
-              >
-                <td className="py-3 px-4" style={{ color: 'var(--neon-cyan)' }}>
-                  {cert.domain}
-                </td>
-                <td className="py-3 px-4">
-                  <span style={{ color: getStatusColor(cert.status) }}>
-                    {getStatusIcon(cert.status)} {cert.status.toUpperCase()}
-                  </span>
-                </td>
-                <td className="py-3 px-4" style={{ color: 'var(--text-secondary)' }}>
-                  {cert.hasSSL ? formatExpiryDate(cert.expiryDate, cert.daysUntilExpiry) : 'No SSL'}
-                </td>
-                <td className="py-3 px-4">
-                  <button
-                    onClick={() => repairSsl(cert.domain)}
-                    className="btn-neon px-3 py-1 text-xs font-bold"
-                  >
-                    Repair SSL
-                  </button>
-                </td>
+      {loading ? (
+        <div className="text-sm font-mono" style={{ color: 'var(--text-secondary)' }}>
+          ⟳ Loading SSL status...
+        </div>
+      ) : sslStatus.length === 0 ? (
+        <div className="text-sm font-mono" style={{ color: 'var(--text-secondary)' }}>
+          No SSL certificates found
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full font-mono text-sm">
+            <thead>
+              <tr style={{ borderBottom: '2px solid var(--neon-purple)' }}>
+                <th className="text-left py-3 px-4" style={{ color: 'var(--neon-pink)' }}>
+                  DOMAIN
+                </th>
+                <th className="text-left py-3 px-4" style={{ color: 'var(--neon-pink)' }}>
+                  STATUS
+                </th>
+                <th className="text-left py-3 px-4" style={{ color: 'var(--neon-pink)' }}>
+                  EXPIRES
+                </th>
+                <th className="text-left py-3 px-4" style={{ color: 'var(--neon-pink)' }}>
+                  ACTIONS
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {sslStatus.map((cert) => (
+                <tr
+                  key={cert.domain}
+                  className="hover:bg-white/5 transition-colors"
+                  style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}
+                >
+                  <td className="py-3 px-4" style={{ color: 'var(--neon-cyan)' }}>
+                    {cert.domain}
+                  </td>
+                  <td className="py-3 px-4">
+                    <span style={{ color: getStatusColor(cert.status) }}>
+                      {getStatusIcon(cert.status)} {cert.status.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4" style={{ color: 'var(--text-secondary)' }}>
+                    {cert.hasSSL ? formatExpiryDate(cert.expiryDate, cert.daysUntilExpiry) : 'No SSL'}
+                  </td>
+                  <td className="py-3 px-4">
+                    <button
+                      onClick={() => repairSsl(cert.domain)}
+                      className="btn-neon px-3 py-1 text-xs font-bold"
+                    >
+                      Repair SSL
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
