@@ -38,6 +38,7 @@ const DEFAULT_ACME_PATHS = [
   '/home/stella/projects/ioi_docker/traefik/letsencrypt/acme.json',
   '/home/stella/traefik/letsencrypt/acme.json',
   '/data/traefik/acme.json',
+  '/letsencrypt/acme.json',
 ].filter(Boolean) as string[];
 
 async function loadAcme(): Promise<CertificateEntry[] | null> {
