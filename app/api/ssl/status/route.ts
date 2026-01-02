@@ -98,64 +98,104 @@ export async function GET() {
   try {
     await requireAuth();
 
-    // Build host list from managed containers' Traefik labels to avoid relying on Traefik API
-    const containers = await docker.listContainers({
-      all: true,
-      filters: { label: ['docklite.managed=true'] },
-    });
-
-    const hostEntries: Array<{ host: string; tlsResolver?: string }> = [];
-    for (const c of containers) {
-      const labels = c.Labels || {};
-      // Collect router rules
-      for (const [key, value] of Object.entries(labels)) {
-        const match = key.match(/^traefik\.http\.routers\.([^.]+)\.rule$/);
-        if (match && typeof value === 'string') {
-          const hosts = getHostsFromRule(value);
-          const resolver =
-            labels[`traefik.http.routers.${match[1]}.tls.certresolver`] ||
-            labels[`traefik.http.routers.${match[1]}.tls.certResolver`];
+    // Try Traefik HTTP API first (avoids needing Docker socket)
+    let uniqueHosts: Array<{ host: string; tlsResolver?: string }> = [];
+    try {
+      const res = await fetch('http://localhost:8080/api/http/routers');
+      if (res.ok) {
+        const routers: TraefikRouter[] = await res.json();
+        const dockliteRouters = routers.filter(
+          (router) => router.provider === 'docker' && router.name.toLowerCase().includes('docklite')
+        );
+        for (const router of dockliteRouters) {
+          const hosts = getHostsFromRule(router.rule);
           hosts.forEach((host) =>
-            hostEntries.push({ host, tlsResolver: typeof resolver === 'string' ? resolver : undefined })
+            uniqueHosts.push({
+              host,
+              tlsResolver: router.tls?.certResolver,
+            })
           );
         }
       }
+    } catch (err) {
+      // Ignore and fall back to docker labels
     }
 
-    // De-duplicate hosts
-    const uniqueHosts = Array.from(new Set(hostEntries.map((h) => h.host))).map((host) => {
-      const entry = hostEntries.find((h) => h.host === host);
-      return { host, tlsResolver: entry?.tlsResolver };
-    });
+    // If no hosts from API, fall back to managed containers (requires Docker socket)
+    if (uniqueHosts.length === 0) {
+      try {
+        const containers = await docker.listContainers({
+          all: true,
+          filters: { label: ['docklite.managed=true'] },
+        });
+        const hostEntries: Array<{ host: string; tlsResolver?: string }> = [];
+        for (const c of containers) {
+          const labels = c.Labels || {};
+          for (const [key, value] of Object.entries(labels)) {
+            const match = key.match(/^traefik\.http\.routers\.([^.]+)\.rule$/);
+            if (match && typeof value === 'string') {
+              const hosts = getHostsFromRule(value);
+              const resolver =
+                labels[`traefik.http.routers.${match[1]}.tls.certresolver`] ||
+                labels[`traefik.http.routers.${match[1]}.tls.certResolver`];
+              hosts.forEach((host) =>
+                hostEntries.push({ host, tlsResolver: typeof resolver === 'string' ? resolver : undefined })
+              );
+            }
+          }
+        }
+        uniqueHosts = Array.from(new Set(hostEntries.map((h) => h.host))).map((host) => {
+          const entry = hostEntries.find((h) => h.host === host);
+          return { host, tlsResolver: entry?.tlsResolver };
+        });
+      } catch {
+        // continue
+      }
+    }
 
     const acmeEntries = await loadAcme();
     const certMap = buildCertMap(acmeEntries);
 
     const statuses: SslStatus[] = [];
 
-    for (const { host, tlsResolver } of uniqueHosts) {
-      const hasTls = tlsResolver === 'letsencrypt';
-      if (!hasTls) {
+    // If we have hosts, report against cert map; otherwise return all certs we see
+    if (uniqueHosts.length > 0) {
+      for (const { host, tlsResolver } of uniqueHosts) {
+        const hasTls = tlsResolver === 'letsencrypt';
+        if (!hasTls) {
+          statuses.push({
+            domain: host,
+            hasSSL: false,
+            expiryDate: null,
+            daysUntilExpiry: null,
+            status: 'none',
+          });
+          continue;
+        }
+
+        const certEntry = certMap.get(host) || certMap.get(host.replace('www.', ''));
+        const { expiryDate, daysUntilExpiry, status } = getExpiry(certEntry);
+
         statuses.push({
           domain: host,
-          hasSSL: false,
-          expiryDate: null,
-          daysUntilExpiry: null,
-          status: 'none',
+          hasSSL: !!certEntry,
+          expiryDate,
+          daysUntilExpiry,
+          status: certEntry ? status : 'none',
         });
-        continue;
       }
-
-      const certEntry = certMap.get(host) || certMap.get(host.replace('www.', ''));
-      const { expiryDate, daysUntilExpiry, status } = getExpiry(certEntry);
-
-      statuses.push({
-        domain: host,
-        hasSSL: !!certEntry,
-        expiryDate,
-        daysUntilExpiry,
-        status: certEntry ? status : 'none',
-      });
+    } else {
+      // Fallback: list all certs from acme.json
+      for (const [host, certEntry] of certMap.entries()) {
+        const { expiryDate, daysUntilExpiry, status } = getExpiry(certEntry);
+        statuses.push({
+          domain: host,
+          hasSSL: true,
+          expiryDate,
+          daysUntilExpiry,
+          status,
+        });
+      }
     }
 
     return NextResponse.json({ sites: statuses });
