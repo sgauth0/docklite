@@ -3,6 +3,7 @@ import { requireAdmin, requireAuth, getSession } from '@/lib/auth';
 import { clearUserSessions, getUserById, updateUserPassword, verifyPassword } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+const MIN_PASSWORD_LENGTH = 10;
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,9 +16,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
       return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
+        { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` },
         { status: 400 }
       );
     }

@@ -2,9 +2,21 @@ import { getIronSession, IronSession, SessionOptions } from 'iron-session';
 import { cookies } from 'next/headers';
 import { UserSession } from '@/types';
 
+function getSessionPassword(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (secret) return secret;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_SECRET is required in production.');
+  }
+
+  console.warn('⚠️ SESSION_SECRET is not set. Using a temporary dev-only secret.');
+  return `dev_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+}
+
 // Session configuration
 export const sessionOptions: SessionOptions = {
-  password: process.env.SESSION_SECRET || 'complex_password_at_least_32_characters_long_for_security',
+  password: getSessionPassword(),
   cookieName: 'docklite_session',
   cookieOptions: {
     secure: process.env.NODE_ENV === 'production',
@@ -36,17 +48,13 @@ export async function getCurrentUser(): Promise<UserSession | null> {
   const session = await getSession();
   if (!session.user) return null;
 
-  // Handle old sessions without role field - populate from database but don't save
-  // (session will be updated on next login)
-  if (!session.user.role) {
-    const { getUserById } = await import('./db');
-    const dbUser = getUserById(session.user.userId);
-    if (dbUser) {
-      // Populate the role for this request, but don't persist to cookie
-      // The session will be updated on next login with the role
-      session.user.role = dbUser.role || (dbUser.is_admin ? 'admin' : 'user');
-    }
-  }
+  const { getUserById } = await import('./db');
+  const dbUser = getUserById(session.user.userId);
+  if (!dbUser) return null;
+
+  session.user.role = dbUser.role || (dbUser.is_admin ? 'admin' : 'user');
+  session.user.isAdmin = dbUser.is_admin === 1;
+  session.user.username = dbUser.username;
 
   return session.user;
 }

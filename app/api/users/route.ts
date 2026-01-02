@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, requireAuth, canManageUser } from '@/lib/auth';
-import { createUser, deleteUser, getUserById, transferUserSites } from '@/lib/db';
+import { createUser, deleteUserWithTransfer, getUserById } from '@/lib/db';
 import { ensureUserFolder } from '@/lib/user-helpers';
 
 export const dynamic = 'force-dynamic';
+const MIN_PASSWORD_LENGTH = 10;
 
 // Get all users (admin only)
 export async function GET() {
@@ -44,9 +45,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (password.length < 6) {
+    if (password.length < MIN_PASSWORD_LENGTH) {
       return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
+        { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` },
         { status: 400 }
       );
     }
@@ -134,8 +135,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const transferTo = targetUser.managed_by ?? currentUser.userId;
-    transferUserSites(targetUserId, transferTo);
-    deleteUser(targetUserId);
+    deleteUserWithTransfer(targetUserId, transferTo);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     if (error.message === 'Unauthorized') {

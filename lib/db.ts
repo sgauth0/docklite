@@ -83,16 +83,6 @@ export function initializeDatabase() {
   `);
 
   // Sessions table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      user_id INTEGER NOT NULL,
-      expires_at DATETIME NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )
-  `);
-
   // Run migrations after initial schema creation
   runMigrations(db, dbPath);
 
@@ -123,12 +113,30 @@ function seedAdminUser() {
     const existingAdmin = db.prepare('SELECT id FROM users WHERE username = ?').get('admin') as { id: number } | undefined;
 
     if (!existingSuperAdmin && !existingAdmin) {
-      const passwordHash = bcrypt.hashSync('admin', 10);
+      const seedUsername = process.env.SEED_ADMIN_USERNAME;
+      const seedPassword = process.env.SEED_ADMIN_PASSWORD;
+
+      if (!seedUsername || !seedPassword) {
+        if (process.env.NODE_ENV === 'production') {
+          console.warn('⚠️ Skipping admin seed: SEED_ADMIN_USERNAME/SEED_ADMIN_PASSWORD are not set.');
+          return;
+        }
+        const devPassword = `dev_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+        const passwordHash = bcrypt.hashSync(devPassword, 10);
+        db.prepare(`
+          INSERT INTO users (username, password_hash, is_admin, role, is_super_admin, managed_by)
+          VALUES (?, ?, 1, 'super_admin', 1, NULL)
+        `).run('superadmin', passwordHash);
+        console.log(`✓ Superadmin user created (username: superadmin, password: ${devPassword})`);
+        return;
+      }
+
+      const passwordHash = bcrypt.hashSync(seedPassword, 10);
       db.prepare(`
         INSERT INTO users (username, password_hash, is_admin, role, is_super_admin, managed_by)
         VALUES (?, ?, 1, 'super_admin', 1, NULL)
-      `).run('superadmin', passwordHash);
-      console.log('✓ Superadmin user created (username: superadmin, password: admin)');
+      `).run(seedUsername, passwordHash);
+      console.log(`✓ Superadmin user created (username: ${seedUsername})`);
     } else if (existingSuperAdmin) {
       db.prepare(`
         UPDATE users
@@ -198,11 +206,7 @@ export function updateUserPassword(userId: number, password: string): void {
 }
 
 export function clearUserSessions(userId: number): void {
-  try {
-    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
-  } catch (error) {
-    console.error(`Failed to clear sessions for user ${userId}:`, error);
-  }
+  console.warn(`⚠️ clearUserSessions(${userId}) called: session storage uses cookies only.`);
 }
 
 export function getUserSiteCount(userId: number): number {
@@ -212,8 +216,15 @@ export function getUserSiteCount(userId: number): number {
 
 export function deleteUser(userId: number): void {
   db.prepare('DELETE FROM database_permissions WHERE user_id = ?').run(userId);
-  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
   db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+}
+
+export function deleteUserWithTransfer(fromUserId: number, toUserId: number): void {
+  const transaction = db.transaction(() => {
+    transferUserSites(fromUserId, toUserId);
+    deleteUser(fromUserId);
+  });
+  transaction();
 }
 
 export function getUsersByManager(managerId: number): User[] {
