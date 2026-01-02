@@ -21,6 +21,7 @@ interface CertificateEntry {
     sans?: string[];
   };
   certificate: string; // base64
+  key?: string;
 }
 
 interface SslStatus {
