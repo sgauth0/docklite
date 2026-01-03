@@ -1,10 +1,22 @@
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
+import { getSession, requireAdmin } from '@/lib/auth';
 import { listContainers } from '@/lib/docker';
 import Database from 'better-sqlite3';
 import path from 'path';
 
 export async function GET() {
+  if (process.env.ENABLE_DEBUG_PAGES !== 'true') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  try {
+    await requireAdmin();
+  } catch (error: any) {
+    if (error.message === 'Unauthorized' || error.message.includes('Admin')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
+
   const debugInfo = {
     timestamp: new Date().toISOString(),
     database: {
