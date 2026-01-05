@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import FileManager from './FileManager';
+import SchemaBrowser from '../databases/SchemaBrowser';
 
 type SidebarContent = 'stats' | 'logs' | 'database' | 'search' | 'none';
 
@@ -21,6 +23,8 @@ export default function SidebarPanel({
   userSession = null,
 }: SidebarPanelProps) {
   const isFileBrowser = mode === 'file-browser';
+  const pathname = usePathname();
+  const isDbEditMode = Boolean(pathname?.match(/^\/databases\/\d+\/edit/));
   const [selectedContent, setSelectedContent] = useState<SidebarContent>(defaultContent);
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -52,7 +56,7 @@ export default function SidebarPanel({
         }}
         title={`Open ${side} sidebar`}
       >
-        {side === 'left' ? '▶' : '◀'} {isFileBrowser ? 'Files' : 'Sidebar'}
+        {side === 'left' ? '▶' : '◀'} {isDbEditMode ? 'Schema' : isFileBrowser ? 'Files' : 'Sidebar'}
       </button>
     );
   }
@@ -85,7 +89,7 @@ export default function SidebarPanel({
 
         {/* Content Area - simple padding, no notch */}
         <div className={`flex-1 overflow-auto ${isFileBrowser ? 'p-0' : 'p-4'}`}>
-          {isFileBrowser && <FileManager embedded userSession={userSession} />}
+          {isFileBrowser && (isDbEditMode ? <SchemaBrowser /> : <FileManager embedded userSession={userSession} />)}
           {!isFileBrowser && selectedContent === 'stats' && <StatsContent />}
           {!isFileBrowser && selectedContent === 'logs' && <LogsContent />}
           {!isFileBrowser && selectedContent === 'database' && <DatabaseContent />}

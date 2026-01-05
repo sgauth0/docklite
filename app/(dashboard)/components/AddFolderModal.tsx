@@ -75,7 +75,7 @@ export default function AddFolderModal({ onClose, onSuccess, parentFolderId, par
             />
             {parentFolderId && (
               <p className="text-xs text-gray-400 mt-2">
-                This folder will be created inside "{parentFolderName}"
+                This folder will be created inside &quot;{parentFolderName}&quot;
               </p>
             )}
           </div>

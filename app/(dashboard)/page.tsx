@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ContainerInfo, FolderNode } from '@/types';
-import ContainerCard from './components/ContainerCard';
 import ContainerDetailsModal from './components/ContainerDetailsModal';
 import AllContainersModal from './components/AllContainersModal';
 import AddFolderModal from './components/AddFolderModal';
@@ -20,6 +19,7 @@ export default function DashboardPage() {
   const [foldersData, setFoldersData] = useState<FolderNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentUser, setCurrentUser] = useState<{ userId: number; username: string; isAdmin: boolean; role: string } | null>(null);
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   const [selectedContainerName, setSelectedContainerName] = useState<string>('');
   const [showAllContainersModal, setShowAllContainersModal] = useState(false);
@@ -27,6 +27,11 @@ export default function DashboardPage() {
   const [subfolderParent, setSubfolderParent] = useState<{ id: number; name: string } | null>(null);
   const [showAddContainerModal, setShowAddContainerModal] = useState(false);
   const [filterType, setFilterType] = useState<ContainerType>('all');
+  const [assignTarget, setAssignTarget] = useState<{ id: string; name: string } | null>(null);
+  const [assignUsers, setAssignUsers] = useState<Array<{ id: number; username: string }>>([]);
+  const [assignUserId, setAssignUserId] = useState<string>('');
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignError, setAssignError] = useState('');
   const toast = useToast();
 
   const fetchData = async () => {
@@ -46,6 +51,17 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData();
+    const loadUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (!res.ok) return;
+        const data = await res.json();
+        setCurrentUser(data.user || null);
+      } catch {
+        setCurrentUser(null);
+      }
+    };
+    loadUser();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -66,6 +82,79 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDeleteContainer = async (containerId: string, containerName: string) => {
+    if (!confirm(`Delete "${containerName}"? This will stop and remove the container.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/containers/${containerId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to delete container');
+      }
+      toast.success(`Deleted ${containerName}`);
+      fetchData();
+    } catch (err: any) {
+      toast.error(`Error: ${err.message || err}`);
+    }
+  };
+
+  const loadAssignUsers = async () => {
+    try {
+      const res = await fetch('/api/users');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to load users');
+      }
+      const data = await res.json();
+      setAssignUsers(data.users || []);
+    } catch (err: any) {
+      setAssignError(err.message || 'Failed to load users');
+    }
+  };
+
+  const openAssignModal = async (containerId: string, containerName: string) => {
+    setAssignTarget({ id: containerId, name: containerName });
+    setAssignError('');
+    setAssignUserId('');
+    if (assignUsers.length === 0) {
+      await loadAssignUsers();
+    }
+  };
+
+  const handleAssignSubmit = async () => {
+    if (!assignTarget) return;
+    if (!assignUserId) {
+      setAssignError('Please select a user to assign this container to.');
+      return;
+    }
+    setAssignLoading(true);
+    setAssignError('');
+
+    try {
+      const res = await fetch(`/api/containers/${assignTarget.id}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: Number(assignUserId) }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to assign container');
+      }
+      toast.success(`Assigned ${assignTarget.name}`);
+      setAssignTarget(null);
+      setAssignUserId('');
+      fetchData();
+    } catch (err: any) {
+      setAssignError(err.message || 'Failed to assign container');
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
   const getContainerType = (container: ContainerInfo): 'site' | 'database' | 'other' => {
     const labels = container.labels || {};
     if (labels['docklite.type'] === 'static' || labels['docklite.type'] === 'php' || labels['docklite.type'] === 'node') {
@@ -83,9 +172,9 @@ export default function DashboardPage() {
       color: '#00ffff',
       filter: 'drop-shadow(0 0 6px #00ffff80) drop-shadow(0 0 10px #00ffff60)',
     };
-    if (type === 'site') return <Flower size={32} weight="duotone" style={iconStyle} title="Site" />;
-    if (type === 'database') return <Database size={32} weight="duotone" style={iconStyle} title="Database" />;
-    return <Lightning size={32} weight="duotone" style={iconStyle} title="Utility" />;
+    if (type === 'site') return <Flower size={32} weight="duotone" style={iconStyle} />;
+    if (type === 'database') return <Database size={32} weight="duotone" style={iconStyle} />;
+    return <Lightning size={32} weight="duotone" style={iconStyle} />;
   };
 
   const filterContainers = (containers: ContainerInfo[]): ContainerInfo[] => {
@@ -326,6 +415,9 @@ export default function DashboardPage() {
                 setSelectedContainerId(id);
                 setSelectedContainerName(name);
               }}
+              onDelete={handleDeleteContainer}
+              onAssign={openAssignModal}
+              canAssign={Boolean(currentUser?.isAdmin)}
               onRefresh={fetchData}
               onContainerDrop={handleContainerDrop}
               onContainerReorder={handleContainerReorder}
@@ -363,6 +455,67 @@ export default function DashboardPage() {
             fetchData();
           }}
         />
+      )}
+
+      {assignTarget && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="cyber-card max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold neon-text-pink">
+                Assign Container
+              </h2>
+              <button
+                onClick={() => setAssignTarget(null)}
+                className="text-gray-400 hover:text-neon-cyan transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+              Assign <span className="font-bold" style={{ color: 'var(--neon-cyan)' }}>{assignTarget.name}</span> to a user.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-bold mb-2 text-neon-cyan">
+                Select User
+              </label>
+              <select
+                value={assignUserId}
+                onChange={(e) => setAssignUserId(e.target.value)}
+                className="input-vapor w-full"
+              >
+                <option value="">Choose a user...</option>
+                {assignUsers.map((user) => (
+                  <option key={user.id} value={String(user.id)}>
+                    {user.username}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {assignError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/50">
+                <p className="text-sm text-red-400">{assignError}</p>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setAssignTarget(null)}
+                className="flex-1 px-4 py-2 rounded-lg font-bold border-2 border-gray-600 text-gray-300 hover:border-gray-500 transition-colors"
+                disabled={assignLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAssignSubmit}
+                className="flex-1 cyber-button"
+                disabled={assignLoading || !assignUserId}
+              >
+                {assignLoading ? 'Assigning...' : 'Assign'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showAddFolderModal && (

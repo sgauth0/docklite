@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getDatabaseById } from '@/lib/db';
+import { deleteDatabase, getDatabaseById } from '@/lib/db';
+import { removeContainer } from '@/lib/docker';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -81,6 +82,97 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     console.error('Error updating database:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await requireAuth();
+    if (!user.isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const databaseId = parseInt(id, 10);
+    if (isNaN(databaseId)) {
+      return NextResponse.json(
+        { error: 'Invalid database ID' },
+        { status: 400 }
+      );
+    }
+
+    const database = getDatabaseById(databaseId);
+    if (!database) {
+      return NextResponse.json(
+        { error: 'Database not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ database });
+  } catch (error: any) {
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    console.error('Error fetching database:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await requireAuth();
+    if (!user.isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const databaseId = parseInt(id, 10);
+    if (isNaN(databaseId)) {
+      return NextResponse.json(
+        { error: 'Invalid database ID' },
+        { status: 400 }
+      );
+    }
+
+    const database = getDatabaseById(databaseId);
+    if (!database) {
+      return NextResponse.json(
+        { error: 'Database not found' },
+        { status: 404 }
+      );
+    }
+
+    if (database.container_id) {
+      try {
+        await removeContainer(database.container_id, true);
+      } catch (err: any) {
+        if (err?.statusCode !== 404 && !String(err?.message || '').includes('No such container')) {
+          throw err;
+        }
+      }
+    }
+
+    deleteDatabase(databaseId);
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    console.error('Error deleting database:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -100,6 +100,7 @@ export interface ContainerInfo {
   image: string;
   ports: string;
   labels?: { [key: string]: string };
+  owner_username?: string;
 }
 
 export interface ContainerStats {

@@ -1,30 +1,68 @@
 import { getIronSession, IronSession, SessionOptions } from 'iron-session';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { UserSession } from '@/types';
+import crypto from 'crypto';
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __dockliteDevSessionSecret: string | undefined;
+}
 
 function getSessionPassword(): string {
   const secret = process.env.SESSION_SECRET;
-  if (secret) return secret;
+  const isProd = process.env.NODE_ENV === 'production';
+  const isValidLength = typeof secret === 'string' && secret.length >= 32;
 
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('SESSION_SECRET is required in production.');
+  if (secret && isValidLength) return secret;
+
+  if (isProd) {
+    if (!secret) {
+      throw new Error('SESSION_SECRET is required in production.');
+    }
+    throw new Error('SESSION_SECRET must be at least 32 characters long in production.');
+  }
+
+  if (secret) {
+    console.warn('⚠️ SESSION_SECRET is too short. Deriving a dev-only secret.');
+    return crypto.createHash('sha256').update(secret).digest('hex');
   }
 
   console.warn('⚠️ SESSION_SECRET is not set. Using a temporary dev-only secret.');
-  return `dev_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+  if (!globalThis.__dockliteDevSessionSecret) {
+    globalThis.__dockliteDevSessionSecret = `dev_${crypto.randomBytes(24).toString('hex')}`;
+  }
+  return globalThis.__dockliteDevSessionSecret;
 }
 
 // Session configuration
-export const sessionOptions: SessionOptions = {
-  password: getSessionPassword(),
-  cookieName: 'docklite_session',
-  cookieOptions: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-  },
-};
+function shouldUseSecureCookies(): boolean {
+  if (process.env.DOCKLITE_INSECURE_COOKIES === 'true') return false;
+  if (process.env.NODE_ENV !== 'production') return false;
+
+  try {
+    const proto = headers().get('x-forwarded-proto');
+    if (proto) {
+      return proto.split(',')[0]?.trim() === 'https';
+    }
+  } catch {
+    // Fall through to production default if headers are unavailable.
+  }
+
+  return true;
+}
+
+function getSessionOptions(): SessionOptions {
+  return {
+    password: getSessionPassword(),
+    cookieName: 'docklite_session',
+    cookieOptions: {
+      secure: shouldUseSecureCookies(),
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    },
+  };
+}
 
 // Extend IronSession type
 export interface SessionData {
@@ -34,7 +72,7 @@ export interface SessionData {
 // Get session from cookies
 export async function getSession(): Promise<IronSession<SessionData>> {
   const cookieStore = await cookies();
-  return getIronSession<SessionData>(cookieStore, sessionOptions);
+  return getIronSession<SessionData>(cookieStore, getSessionOptions());
 }
 
 // Check if user is authenticated

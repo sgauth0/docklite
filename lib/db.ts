@@ -121,13 +121,14 @@ function seedAdminUser() {
           console.warn('⚠️ Skipping admin seed: SEED_ADMIN_USERNAME/SEED_ADMIN_PASSWORD are not set.');
           return;
         }
-        const devPassword = `dev_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+        const devUsername = 'superadmin';
+        const devPassword = 'admin';
         const passwordHash = bcrypt.hashSync(devPassword, 10);
         db.prepare(`
           INSERT INTO users (username, password_hash, is_admin, role, is_super_admin, managed_by)
           VALUES (?, ?, 1, 'super_admin', 1, NULL)
-        `).run('superadmin', passwordHash);
-        console.log(`✓ Superadmin user created (username: superadmin, password: ${devPassword})`);
+        `).run(devUsername, passwordHash);
+        console.log(`✓ Superadmin user created (username: ${devUsername}, password: ${devPassword})`);
         return;
       }
 
@@ -266,6 +267,10 @@ export function getSiteById(id: number, userId: number, isAdmin: boolean): Site 
 
 export function getSiteByContainerId(containerId: string): Site | undefined {
   return db.prepare('SELECT * FROM sites WHERE container_id = ?').get(containerId) as Site | undefined;
+}
+
+export function updateSiteUserIdByContainerId(containerId: string, userId: number): void {
+  db.prepare('UPDATE sites SET user_id = ? WHERE container_id = ?').run(userId, containerId);
 }
 
 
@@ -473,6 +478,12 @@ export function unlinkContainerFromFolder(folderId: number, containerId: string)
   db.prepare(`
     DELETE FROM folder_containers WHERE folder_id = ? AND container_id = ?
   `).run(folderId, containerId);
+}
+
+export function unlinkContainerFromAllFolders(containerId: string): void {
+  db.prepare(`
+    DELETE FROM folder_containers WHERE container_id = ?
+  `).run(containerId);
 }
 
 export function getContainersByFolder(folderId: number): string[] {

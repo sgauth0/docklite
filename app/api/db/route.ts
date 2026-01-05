@@ -17,11 +17,24 @@ export async function GET() {
     }
 
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
+    const sensitiveColumns = new Set(['password_hash']);
+    const quoteIdent = (value: string) => `"${value.replace(/"/g, '""')}"`;
 
     const schemaAndData = tables.map((table: any) => {
-      const schema = db.prepare(`PRAGMA table_info(${table.name})`).all();
-      const count = db.prepare(`SELECT COUNT(*) as count FROM ${table.name}`).get() as { count: number };
-      return { name: table.name, schema, count: count.count };
+      const tableName = table.name as string;
+      const schema = db.prepare(`PRAGMA table_info(${quoteIdent(tableName)})`).all();
+      const visibleColumns = schema
+        .map((col: any) => col.name as string)
+        .filter((name: string) => !sensitiveColumns.has(name));
+      const count = db.prepare(`SELECT COUNT(*) as count FROM ${quoteIdent(tableName)}`).get() as { count: number };
+
+      let data: any[] = [];
+      if (visibleColumns.length > 0) {
+        const columnList = visibleColumns.map(quoteIdent).join(', ');
+        data = db.prepare(`SELECT ${columnList} FROM ${quoteIdent(tableName)} LIMIT 10`).all() as any[];
+      }
+
+      return { name: tableName, schema, count: count.count, data };
     });
 
     return NextResponse.json({ dbInfo: schemaAndData });

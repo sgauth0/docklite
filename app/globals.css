@@ -9,11 +9,11 @@
     --bg-dark: #0a0a1e;
     --bg-darker: #050510;
     --bg-card: #1a0a2e;
-    --neon-cyan: #00ffff;
-    --neon-pink: #ff10f0;
-    --neon-purple: #b537f2;
-    --neon-green: #39ff14;
-    --neon-yellow: #ffff00;
+    --neon-cyan: #4fd6ff;
+    --neon-pink: #ff6bd6;
+    --neon-purple: #7b5cff;
+    --neon-green: #6bffb0;
+    --neon-yellow: #ffe66d;
     --text-primary: #e0e0ff;
     --text-secondary: #a0a0c0;
     --text-muted: #707090;
@@ -62,31 +62,31 @@
 
 @layer components {
   .neon-text {
-    text-shadow: 0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor;
+    text-shadow: 0 0 3px currentColor, 0 0 6px currentColor;
   }
 
   .neon-text-pink {
     color: var(--neon-pink);
-    text-shadow: 0 0 5px var(--neon-pink), 0 0 10px var(--neon-pink);
+    text-shadow: 0 0 3px var(--neon-pink), 0 0 6px var(--neon-pink);
   }
 
   .neon-text-cyan {
     color: var(--neon-cyan);
-    text-shadow: 0 0 5px var(--neon-cyan), 0 0 10px var(--neon-cyan);
+    text-shadow: 0 0 3px var(--neon-cyan), 0 0 6px var(--neon-cyan);
   }
 
   .neon-border {
     border: 2px solid var(--neon-cyan);
-    box-shadow: 0 0 5px var(--neon-cyan), inset 0 0 5px var(--neon-cyan);
+    box-shadow: 0 0 3px var(--neon-cyan), inset 0 0 3px var(--neon-cyan);
   }
 
   .neon-glow {
-    box-shadow: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink), 0 0 30px var(--neon-pink);
+    box-shadow: 0 0 6px var(--neon-pink), 0 0 12px var(--neon-pink), 0 0 18px var(--neon-pink);
   }
 
   .card-vapor {
     background: linear-gradient(135deg, rgba(26, 10, 46, 0.95) 0%, rgba(10, 5, 30, 0.9) 100%);
-    border: 1px solid rgba(255, 16, 240, 0.3);
+    border: 1px solid rgba(255, 107, 214, 0.25);
     border-radius: 16px;
     backdrop-filter: blur(10px);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
@@ -100,7 +100,7 @@
     border-radius: 8px;
     padding: 0.5rem 1rem;
     text-shadow: none;
-    box-shadow: 0 2px 12px rgba(181, 55, 242, 0.3);
+    box-shadow: 0 2px 10px rgba(123, 92, 255, 0.25);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     font-family: 'Space Mono', monospace;
     font-size: 0.875rem;
@@ -111,8 +111,8 @@
   }
 
   .btn-neon:hover {
-    box-shadow: 0 4px 20px rgba(0, 255, 255, 0.5), 0 6px 30px rgba(181, 55, 242, 0.3);
-    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(79, 214, 255, 0.35), 0 6px 22px rgba(123, 92, 255, 0.25);
+    transform: translateY(-1px);
   }
 
   .btn-neon:active {
@@ -267,7 +267,7 @@
 
   /* Enhanced glow for ultrawide */
   .ultra-glow {
-    box-shadow: 0 0 20px var(--neon-cyan), 0 0 40px var(--neon-purple), 0 0 60px var(--neon-pink);
+    box-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-purple), 0 0 30px var(--neon-pink);
   }
 
   /* Enhanced hover effects for cyberpunk feel */
@@ -373,10 +373,10 @@
 
   @keyframes glow-pulse {
     0%, 100% { 
-      box-shadow: 0 0 20px rgba(0, 255, 255, 0.3), 0 0 40px rgba(181, 55, 242, 0.2); 
+      box-shadow: 0 0 10px rgba(79, 214, 255, 0.25), 0 0 20px rgba(123, 92, 255, 0.18); 
     }
     50% { 
-      box-shadow: 0 0 30px rgba(0, 255, 255, 0.6), 0 0 60px rgba(181, 55, 242, 0.4); 
+      box-shadow: 0 0 16px rgba(79, 214, 255, 0.4), 0 0 32px rgba(123, 92, 255, 0.3); 
     }
   }
 

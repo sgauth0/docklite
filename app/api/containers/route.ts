@@ -5,6 +5,7 @@ import {
   getFoldersByUser,
   getContainersByFolder,
   getSiteByDomain,
+  getSiteByContainerId,
   createSite,
   updateSiteContainerId,
   updateSiteStatus,
@@ -37,9 +38,41 @@ export async function GET() {
     // Non-admins only see their own containers
     if (!user.isAdmin) {
       allContainers = allContainers.filter(
-        (c) => c.labels?.['docklite.user.id'] === String(user.userId)
+        (c) => {
+          const site = getSiteByContainerId(c.id);
+          if (site) {
+            return site.user_id === user.userId;
+          }
+          return c.labels?.['docklite.user.id'] === String(user.userId);
+        }
       );
     }
+
+    const userCache = new Map<number, string>();
+    const containersWithOwners = allContainers.map((container) => {
+      const site = getSiteByContainerId(container.id);
+      let ownerName: string | undefined;
+      let ownerId: number | undefined;
+      if (site) {
+        ownerId = site.user_id;
+      } else if (container.labels?.['docklite.user.id']) {
+        const parsed = Number(container.labels['docklite.user.id']);
+        if (!Number.isNaN(parsed)) ownerId = parsed;
+      }
+      if (ownerId) {
+        if (!userCache.has(ownerId)) {
+          const user = getUserById(ownerId);
+          if (user) {
+            userCache.set(ownerId, user.username);
+          }
+        }
+        ownerName = userCache.get(ownerId);
+      }
+      return {
+        ...container,
+        owner_username: ownerName,
+      };
+    });
 
     // Build map of containers by folder ID
     const containersByFolderId = new Map<number, ContainerInfo[]>();
@@ -50,7 +83,7 @@ export async function GET() {
       const folderContainerIds = getContainersByFolder(folder.id);
 
       // Find the actual container objects
-      const folderContainers = allContainers.filter(c =>
+      const folderContainers = containersWithOwners.filter(c =>
         folderContainerIds.includes(c.id)
       );
 
@@ -61,7 +94,7 @@ export async function GET() {
     }
 
     // Find unassigned containers (containers not in any folder)
-    const unassignedContainers = allContainers.filter(c =>
+    const unassignedContainers = containersWithOwners.filter(c =>
       !assignedContainerIds.has(c.id)
     );
 

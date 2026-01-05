@@ -62,6 +62,7 @@ export async function getContainerById(id: string): Promise<ContainerInfo | null
       uptime,
       image: info.Config.Image,
       ports: formatPortsFromInspect(info.NetworkSettings.Ports),
+      labels: info.Config.Labels || {},
     };
   } catch (error) {
     console.error(`Error getting container ${id}:`, error);

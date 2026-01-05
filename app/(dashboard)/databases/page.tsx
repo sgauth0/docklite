@@ -1,9 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Database as DatabaseType } from '@/types';
 import DbViewer from './DbViewer';
 import SkeletonLoader from '../components/SkeletonLoader';
+import { Database, DotsThree, PencilSimpleLine, SignIn, Trash } from '@phosphor-icons/react';
+import { useRouter } from 'next/navigation';
 
 interface DatabaseWithSize extends DatabaseType {
   size: number;
@@ -17,6 +20,7 @@ interface DockliteDbInfo {
 }
 
 export default function DatabasesPage() {
+  const router = useRouter();
   const [databases, setDatabases] = useState<DatabaseWithSize[]>([]);
   const [dockliteDb, setDockliteDb] = useState<DockliteDbInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,6 +34,16 @@ export default function DatabasesPage() {
   const [editingDb, setEditingDb] = useState<DatabaseWithSize | null>(null);
   const [editUsername, setEditUsername] = useState('');
   const [editPassword, setEditPassword] = useState('');
+  const [menuDbId, setMenuDbId] = useState<number | null>(null);
+  const [deleteDb, setDeleteDb] = useState<DatabaseWithSize | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingDb, setDeletingDb] = useState(false);
+  const [editModeDb, setEditModeDb] = useState<DatabaseWithSize | null>(null);
+  const [editModeUsername, setEditModeUsername] = useState('');
+  const [editModePassword, setEditModePassword] = useState('');
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const menuPopupRef = useRef<HTMLDivElement>(null);
+  const stopMenu = (event: React.PointerEvent) => event.stopPropagation();
 
   const fetchDatabases = async () => {
     try {
@@ -50,6 +64,17 @@ export default function DatabasesPage() {
     fetchDatabases();
     const interval = setInterval(fetchDatabases, 30000); // Refresh every 30s
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest('[data-db-menu="true"]')) {
+        setMenuDbId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -126,6 +151,55 @@ export default function DatabasesPage() {
     setEditUsername('docklite');
     setEditPassword('');
     setError('');
+  };
+
+  const openDeleteModal = (db: DatabaseWithSize) => {
+    setDeleteDb(db);
+    setDeleteConfirmText('');
+    setError('');
+  };
+
+  const handleDelete = async () => {
+    if (!deleteDb) return;
+    setDeletingDb(true);
+    setError('');
+
+    try {
+      const res = await fetch(`/api/databases/${deleteDb.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete database');
+      }
+      setDeleteDb(null);
+      setDeleteConfirmText('');
+      await fetchDatabases();
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete database');
+    } finally {
+      setDeletingDb(false);
+    }
+  };
+
+  const openEditModeModal = (db: DatabaseWithSize) => {
+    setEditModeDb(db);
+    setEditModeUsername('docklite');
+    setEditModePassword('');
+    setError('');
+  };
+
+  const handleEnterEditMode = () => {
+    if (!editModeDb) return;
+    if (!editModeUsername || !editModePassword) {
+      setError('Database username and password are required for edit mode.');
+      return;
+    }
+    const payload = {
+      username: editModeUsername,
+      password: editModePassword,
+    };
+    sessionStorage.setItem(`docklite-db-edit-${editModeDb.id}`, JSON.stringify(payload));
+    setEditModeDb(null);
+    router.push(`/databases/${editModeDb.id}/edit`);
   };
 
   const formatBytes = (bytes: number) => {
@@ -323,15 +397,149 @@ export default function DatabasesPage() {
             {databases.map((db) => (
               <div
                 key={db.id}
-                className="card-vapor p-6 rounded-xl border border-purple-500/20 transition-all hover:scale-[1.02] hover:border-purple-500/50"
+                className="p-6 rounded-xl transition-all hover:scale-[1.02] relative"
+                style={{
+                  background: 'rgba(10, 5, 20, 0.3)',
+                  backdropFilter: 'blur(12px)',
+                  border: '2px solid var(--neon-green)',
+                  boxShadow: `
+                    0 0 3px rgba(107, 255, 176, 1),
+                    0 0 6px rgba(107, 255, 176, 0.7),
+                    0 0 12px rgba(107, 255, 176, 0.5),
+                    0 0 18px rgba(107, 255, 176, 0.35),
+                    inset 0 0 2px rgba(107, 255, 176, 0.9),
+                    inset 0 0 4px rgba(107, 255, 176, 0.6),
+                    inset 0 0 8px rgba(107, 255, 176, 0.4)
+                  `,
+                }}
               >
-                {/* Header with size emojis */}
-                <div className="flex items-center justify-between mb-4">
+                {/* 3-dot menu */}
+                <div className="absolute top-4 right-4 z-10" data-db-menu="true">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const nextOpen = menuDbId === db.id ? null : db.id;
+                      setMenuDbId(nextOpen);
+                      if (nextOpen !== null && typeof window !== 'undefined') {
+                        const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                        const menuWidth = 200;
+                        const left = Math.max(12, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 12));
+                        setMenuPosition({ top: rect.bottom + 8, left });
+                      } else {
+                        setMenuPosition(null);
+                      }
+                    }}
+                    className="p-2 rounded-lg text-sm font-bold transition-all hover:scale-105"
+                    style={{
+                      background: 'transparent',
+                      border: '2px solid var(--neon-purple)',
+                      color: 'var(--neon-purple)',
+                      boxShadow: `
+                        0 0 5px rgba(181, 55, 242, 0.6),
+                        0 0 10px rgba(181, 55, 242, 0.3)
+                      `,
+                    }}
+                    title="Database actions"
+                  >
+                    <DotsThree size={16} weight="bold" />
+                  </button>
+
+                  {menuDbId === db.id && menuPosition && typeof document !== 'undefined' &&
+                    createPortal(
+                      <div
+                        className="fixed inset-0 z-[10000]"
+                        onClick={() => {
+                          setMenuDbId(null);
+                          setMenuPosition(null);
+                        }}
+                        onPointerDown={stopMenu}
+                        onPointerDownCapture={stopMenu}
+                      >
+                        <div
+                          ref={menuPopupRef}
+                          className="absolute rounded-lg overflow-hidden animate-slide-down"
+                          style={{
+                            top: menuPosition.top,
+                            left: menuPosition.left,
+                            background: 'linear-gradient(135deg, rgba(26, 10, 46, 0.98) 0%, rgba(10, 5, 30, 0.98) 100%)',
+                            border: '1px solid var(--neon-purple)',
+                            boxShadow: '0 0 20px rgba(181, 55, 242, 0.4)',
+                            width: '200px',
+                            maxWidth: 'calc(100vw - 24px)',
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={stopMenu}
+                          onPointerDownCapture={stopMenu}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuDbId(null);
+                              setMenuPosition(null);
+                              openEditModal(db);
+                            }}
+                            onPointerDown={stopMenu}
+                            onPointerDownCapture={stopMenu}
+                            className="w-full px-4 py-3 text-left text-sm font-bold transition-all hover:bg-white/5 flex items-center gap-3"
+                            style={{ color: 'var(--neon-cyan)' }}
+                          >
+                            <PencilSimpleLine size={16} weight="duotone" />
+                            Edit Credentials
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuDbId(null);
+                              setMenuPosition(null);
+                              openEditModeModal(db);
+                            }}
+                            onPointerDown={stopMenu}
+                            onPointerDownCapture={stopMenu}
+                            className="w-full px-4 py-3 text-left text-sm font-bold transition-all hover:bg-white/5 flex items-center gap-3"
+                            style={{ color: 'var(--neon-purple)' }}
+                          >
+                            <SignIn size={16} weight="duotone" />
+                            Edit Database Mode
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuDbId(null);
+                              setMenuPosition(null);
+                              openDeleteModal(db);
+                            }}
+                            onPointerDown={stopMenu}
+                            onPointerDownCapture={stopMenu}
+                            className="w-full px-4 py-3 text-left text-sm font-bold transition-all hover:bg-red-500/20 flex items-center gap-3"
+                            style={{ color: '#ff6b6b' }}
+                          >
+                            <Trash size={16} weight="duotone" />
+                            Delete Database
+                          </button>
+                        </div>
+                      </div>,
+                      document.body
+                    )}
+                </div>
+
+                {/* Header with centered database icon */}
+                <div className="mb-4">
                   <h3 className="text-xl font-bold neon-text truncate" style={{ color: 'var(--neon-cyan)' }}>
                     {db.name}
                   </h3>
-                  <div className="text-2xl flex-shrink-0 ml-2">
-                    {getSizeEmojis(db.sizeCategory) || '📦'}
+                  <div className="mt-3 flex justify-center pointer-events-none">
+                    <Database
+                      size={46}
+                      weight="duotone"
+                      style={{
+                        color: 'var(--neon-cyan)',
+                        filter: 'drop-shadow(0 0 8px rgba(79, 214, 255, 0.7)) drop-shadow(0 0 14px rgba(79, 214, 255, 0.45))',
+                      }}
+                    />
                   </div>
                 </div>
 
@@ -378,16 +586,9 @@ export default function DatabasesPage() {
                   <p className="text-xs font-mono opacity-60 mb-3" style={{ color: 'var(--text-secondary)' }}>
                     Connect: localhost:{db.postgres_port}
                   </p>
-                  <button
-                    onClick={() => openEditModal(db)}
-                    className="w-full px-4 py-2 rounded-lg text-sm font-bold transition-all hover:scale-105"
-                    style={{
-                      background: 'linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-purple) 100%)',
-                      color: 'white',
-                    }}
-                  >
-                    ✏️ Edit Credentials
-                  </button>
+                  <p className="text-xs font-mono opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                    Use the menu for credentials or deletion.
+                  </p>
                 </div>
               </div>
             ))}
@@ -491,6 +692,152 @@ export default function DatabasesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Database Modal */}
+      {deleteDb && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="card-vapor max-w-lg w-full p-8 border-2" style={{ borderColor: '#ff6b6b' }}>
+            <div className="mb-6 text-center">
+              <div className="text-5xl mb-4">⚠️</div>
+              <h2 className="text-2xl font-bold neon-text mb-2" style={{ color: '#ff6b6b' }}>
+                Delete Database
+              </h2>
+              <p className="text-sm font-mono opacity-80" style={{ color: 'var(--text-secondary)' }}>
+                This deletes the PostgreSQL container and all data. This cannot be undone.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg border border-red-500/40" style={{ background: 'rgba(255, 107, 107, 0.08)' }}>
+                <p className="text-xs font-mono" style={{ color: '#ff6b6b' }}>
+                  Type <span className="font-bold">{deleteDb.name}</span> to confirm deletion.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="delete-confirm" className="block text-sm font-bold mb-2" style={{ color: 'var(--neon-pink)' }}>
+                  Confirm Database Name
+                </label>
+                <input
+                  id="delete-confirm"
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  className="input-vapor w-full"
+                  placeholder={deleteDb.name}
+                />
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteDb(null);
+                    setDeleteConfirmText('');
+                  }}
+                  className="flex-1 px-4 py-3 rounded-lg font-bold transition-all hover:scale-105"
+                  style={{
+                    background: 'rgba(100, 100, 100, 0.3)',
+                    border: '2px solid var(--text-secondary)',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  ✕ Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingDb || deleteConfirmText !== deleteDb.name}
+                  onClick={handleDelete}
+                  className="flex-1 px-4 py-3 rounded-lg font-bold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    background: 'linear-gradient(135deg, #ff6b6b 0%, var(--neon-pink) 100%)',
+                    color: 'white',
+                  }}
+                >
+                  {deletingDb ? '⟳ Deleting...' : 'Delete Database'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enter Edit Mode Modal */}
+      {editModeDb && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="card-vapor max-w-lg w-full p-8 border-2" style={{ borderColor: 'var(--neon-purple)' }}>
+            <div className="mb-6 text-center">
+              <div className="text-5xl mb-4">🧠</div>
+              <h2 className="text-2xl font-bold neon-text mb-2" style={{ color: 'var(--neon-cyan)' }}>
+                DO YOU WANT TO EDIT MODE?
+              </h2>
+              <p className="text-sm font-mono opacity-80" style={{ color: 'var(--text-secondary)' }}>
+                Enter database credentials to access live schema tools and SQL runner.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="edit-mode-username" className="block text-sm font-bold mb-2" style={{ color: 'var(--neon-purple)' }}>
+                  👤 DATABASE USERNAME
+                </label>
+                <input
+                  id="edit-mode-username"
+                  type="text"
+                  value={editModeUsername}
+                  onChange={(e) => setEditModeUsername(e.target.value)}
+                  className="input-vapor w-full"
+                  placeholder="docklite"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="edit-mode-password" className="block text-sm font-bold mb-2" style={{ color: 'var(--neon-pink)' }}>
+                  🔑 DATABASE PASSWORD
+                </label>
+                <input
+                  id="edit-mode-password"
+                  type="password"
+                  value={editModePassword}
+                  onChange={(e) => setEditModePassword(e.target.value)}
+                  className="input-vapor w-full"
+                  placeholder="Enter database password"
+                />
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditModeDb(null);
+                    setEditModeUsername('');
+                    setEditModePassword('');
+                  }}
+                  className="flex-1 px-4 py-3 rounded-lg font-bold transition-all hover:scale-105"
+                  style={{
+                    background: 'rgba(100, 100, 100, 0.3)',
+                    border: '2px solid var(--text-secondary)',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  ✕ Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEnterEditMode}
+                  className="flex-1 px-4 py-3 rounded-lg font-bold transition-all hover:scale-105"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-purple) 100%)',
+                    color: 'white',
+                  }}
+                >
+                  ✓ Enter Edit Mode
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

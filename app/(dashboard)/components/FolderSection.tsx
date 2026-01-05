@@ -29,7 +29,9 @@ interface FolderSectionProps {
   getContainerBadge: (container: ContainerInfo) => ReactNode;
   onAction: (containerId: string, action: 'start' | 'stop' | 'restart') => void;
   onViewDetails: (id: string, name: string) => void;
-  onDelete?: (siteId: number, domain: string) => void;
+  onDelete?: (containerId: string, containerName: string) => void;
+  onAssign?: (containerId: string, containerName: string) => void;
+  canAssign?: boolean;
   onRefresh: () => void;
   onContainerDrop: (containerId: string, targetFolderId: number) => void;
   onContainerReorder?: (folderId: number, containerId: string, newPosition: number) => Promise<void>;
@@ -41,18 +43,21 @@ interface FolderSectionProps {
 function SortableContainer({
   container,
   badge,
-  siteId,
   onAction,
   onViewDetails,
   onDelete,
+  onAssign,
+  canAssign,
 }: {
   container: ContainerInfo;
   badge: ReactNode;
-  siteId: number;
   onAction: (containerId: string, action: 'start' | 'stop' | 'restart') => void;
   onViewDetails: (id: string, name: string) => void;
-  onDelete?: (siteId: number, domain: string) => void;
+  onDelete?: (containerId: string, containerName: string) => void;
+  onAssign?: (containerId: string, containerName: string) => void;
+  canAssign?: boolean;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const {
     attributes,
     listeners,
@@ -60,28 +65,33 @@ function SortableContainer({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: container.id });
+  } = useSortable({ id: container.id, disabled: menuOpen });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    cursor: 'grab',
   };
+
+  const dragProps = menuOpen ? {} : { ...attributes, ...listeners };
 
   return (
     <div ref={setNodeRef} style={style} className="relative">
-      {/* Drag handle wrapper - apply listeners here */}
-      <div {...attributes} {...listeners}>
+      <div
+        {...dragProps}
+        style={{ cursor: menuOpen ? 'default' : 'grab' }}
+      >
         {/* Badge Overlay */}
         <div className="absolute -top-2 -right-2 z-10 pointer-events-none">{badge}</div>
 
         <ContainerCard
           container={container}
-          siteId={siteId}
           onAction={onAction}
           onViewDetails={onViewDetails}
           onDelete={onDelete}
+          onAssign={onAssign}
+          canAssign={canAssign}
+          onMenuOpenChange={setMenuOpen}
         />
       </div>
     </div>
@@ -94,6 +104,8 @@ export default function FolderSection({
   onAction,
   onViewDetails,
   onDelete,
+  onAssign,
+  canAssign,
   onRefresh,
   onContainerDrop,
   onContainerReorder,
@@ -114,7 +126,11 @@ export default function FolderSection({
   const indentPixels = folder.depth * 24;
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -241,19 +257,17 @@ export default function FolderSection({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 p-4 rounded-xl border-2 border-transparent">
               {localContainers.map((container) => {
                 const badge = getContainerBadge(container);
-                const siteId = container.labels?.['docklite.site.id']
-                  ? parseInt(container.labels['docklite.site.id'])
-                  : 0;
 
                 return (
                   <SortableContainer
                     key={container.id}
                     container={container}
                     badge={badge}
-                    siteId={siteId}
                     onAction={onAction}
                     onViewDetails={onViewDetails}
                     onDelete={onDelete}
+                    onAssign={onAssign}
+                    canAssign={canAssign}
                   />
                 );
               })}

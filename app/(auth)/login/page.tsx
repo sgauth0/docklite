@@ -53,7 +53,12 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form
+          className="mt-8 space-y-6"
+          onSubmit={handleSubmit}
+          method="POST"
+          action="/api/auth/login"
+        >
           {error && (
             <div className="rounded-lg p-4 font-bold text-center" style={{
               background: 'linear-gradient(135deg, rgba(255, 107, 107, 0.2) 0%, rgba(255, 16, 240, 0.2) 100%)',
@@ -107,7 +112,7 @@ export default function LoginPage() {
           </button>
 
           <p className="mt-6 text-center text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
-            💡 Default: admin / admin
+            💡 Default: superadmin / admin
           </p>
 
           <div className="mt-4 text-center text-xs font-mono" style={{ color: 'var(--neon-purple)' }}>

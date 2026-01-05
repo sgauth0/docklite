@@ -8,7 +8,8 @@ import { useToast } from '@/lib/hooks/useToast';
 interface TableInfo {
   name: string;
   schema: any[];
-  data: any[];
+  data?: any[];
+  count?: number;
 }
 
 export default function DbViewer() {
@@ -29,7 +30,11 @@ export default function DbViewer() {
       setLoading(true);
       const res = await fetch('/api/db');
       if (!res.ok) {
-        throw new Error('Failed to fetch database info');
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 404) {
+          throw new Error('Database debugging is disabled. Set ENABLE_DB_DEBUG=true in .env to enable.');
+        }
+        throw new Error(data.error || 'Failed to fetch database info');
       }
       const data = await res.json();
       setDbInfo(data.dbInfo);
@@ -146,24 +151,32 @@ export default function DbViewer() {
 
               {!loading && !error && (
                 <div className="space-y-6">
-                  {dbInfo.map(table => (
-                    <div key={table.name} className="card-vapor p-6 rounded-xl border border-purple-500/30">
-                      <h3 className="text-xl font-bold neon-text mb-4 flex items-center gap-2" style={{ color: 'var(--neon-pink)' }}>
-                        <span>📊</span>
-                        <span>{table.name}</span>
-                        <span className="text-xs font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                          ({table.data.length} rows)
-                        </span>
-                      </h3>
+                  {dbInfo.map(table => {
+                    const visibleColumns = table.schema.filter(col => !['password_hash'].includes(col.name));
+                    const rows = Array.isArray(table.data) ? table.data : [];
+                    const rowCount = typeof table.count === 'number' ? table.count : rows.length;
 
-                      {/* Data Table */}
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b-2" style={{ borderColor: 'rgba(181, 55, 242, 0.3)' }}>
-                              {table.schema
-                                .filter(col => !['password_hash'].includes(col.name)) // Hide sensitive fields
-                                .map((col: any) => (
+                    return (
+                      <div key={table.name} className="card-vapor p-6 rounded-xl border border-purple-500/30">
+                        <h3 className="text-xl font-bold neon-text mb-4 flex items-center gap-2" style={{ color: 'var(--neon-pink)' }}>
+                          <span>📊</span>
+                          <span>{table.name}</span>
+                          <span className="text-xs font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                            ({rowCount} rows)
+                          </span>
+                          {rows.length > 0 && (
+                            <span className="text-[10px] font-mono opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                              showing first {rows.length}
+                            </span>
+                          )}
+                        </h3>
+
+                        {/* Data Table */}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b-2" style={{ borderColor: 'rgba(181, 55, 242, 0.3)' }}>
+                                {visibleColumns.map((col: any) => (
                                   <th
                                     key={col.name}
                                     className="px-3 py-2 text-left font-bold"
@@ -173,29 +186,27 @@ export default function DbViewer() {
                                     {col.pk && <span className="ml-1 text-xs">🔑</span>}
                                   </th>
                                 ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {table.data.length === 0 ? (
-                              <tr>
-                                <td
-                                  colSpan={table.schema.length}
-                                  className="px-3 py-4 text-center opacity-50"
-                                  style={{ color: 'var(--text-secondary)' }}
-                                >
-                                  No data
-                                </td>
                               </tr>
-                            ) : (
-                              table.data.map((row: any, i: number) => (
-                                <tr
-                                  key={i}
-                                  className="border-b transition-colors hover:bg-purple-900/20"
-                                  style={{ borderColor: 'rgba(181, 55, 242, 0.1)' }}
-                                >
-                                  {table.schema
-                                    .filter(col => !['password_hash'].includes(col.name))
-                                    .map((col: any) => (
+                            </thead>
+                            <tbody>
+                              {rows.length === 0 ? (
+                                <tr>
+                                  <td
+                                    colSpan={visibleColumns.length}
+                                    className="px-3 py-4 text-center opacity-50"
+                                    style={{ color: 'var(--text-secondary)' }}
+                                  >
+                                    No sample rows to display.
+                                  </td>
+                                </tr>
+                              ) : (
+                                rows.map((row: any, i: number) => (
+                                  <tr
+                                    key={i}
+                                    className="border-b transition-colors hover:bg-purple-900/20"
+                                    style={{ borderColor: 'rgba(181, 55, 242, 0.1)' }}
+                                  >
+                                    {visibleColumns.map((col: any) => (
                                       <td
                                         key={col.name}
                                         className="px-3 py-2 font-mono text-xs"
@@ -204,14 +215,15 @@ export default function DbViewer() {
                                         {getSafeValue(row[col.name])}
                                       </td>
                                     ))}
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

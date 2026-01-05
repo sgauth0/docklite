@@ -108,8 +108,7 @@ export async function createDefaultIndexFile(sitePath: string, domain: string, t
 </head>
 <body>
     <h1>Welcome to <?php echo '${domain}'; ?></h1>
-    <p>PHP Version: <?php echo phpversion(); ?></p>
-    <p>Site Path: <code>${sitePath}</code></p>
+    <p>This is a PHP site managed by DockLite.</p>
 </body>
 </html>`;
       await fs.writeFile(`${sitePath}/index.php`, content);
@@ -165,8 +164,7 @@ server.listen(port, hostname, () => {
  */
 export async function ensureBaseSiteDirectories(): Promise<void> {
   try {
-    await execAsync(`mkdir -p "${SITES_BASE_DIR}"`);
-    await execAsync(`chmod 755 "${SITES_BASE_DIR}"`);
+    await fs.mkdir(SITES_BASE_DIR, { recursive: true, mode: 0o755 });
     console.log(`✓ Base site directory ready: ${SITES_BASE_DIR}`);
   } catch (error) {
     console.error('Error creating base site directories:', error);

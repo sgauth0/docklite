@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/lib/hooks/useToast';
 
 type TemplateType = 'static' | 'php' | 'node';
@@ -15,9 +15,27 @@ export default function AddContainerModal({ onClose, onCreated }: AddContainerMo
   const [templateType, setTemplateType] = useState<TemplateType>('static');
   const [codePath, setCodePath] = useState('');
   const [port, setPort] = useState(3000);
+  const [portTouched, setPortTouched] = useState(false);
   const [includeWww, setIncludeWww] = useState(true);
   const [loading, setLoading] = useState(false);
   const toast = useToast();
+
+  useEffect(() => {
+    if (templateType !== 'node' || portTouched) return;
+    const loadSuggestedPort = async () => {
+      try {
+        const res = await fetch('/api/ports/suggest?type=node');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (typeof data.port === 'number') {
+          setPort(data.port);
+        }
+      } catch {
+        // Ignore suggestion failures; keep default
+      }
+    };
+    loadSuggestedPort();
+  }, [templateType, portTouched]);
 
   const handleSubmit = async () => {
     if (!domain.trim()) {
@@ -104,7 +122,10 @@ export default function AddContainerModal({ onClose, onCreated }: AddContainerMo
                 type="number"
                 className="input-vapor w-full px-3 py-2 font-mono"
                 value={port}
-                onChange={(e) => setPort(Number(e.target.value))}
+                onChange={(e) => {
+                  setPort(Number(e.target.value));
+                  setPortTouched(true);
+                }}
                 min={1}
               />
             </div>

@@ -214,7 +214,7 @@ export default function AddDnsRecordModal({ zones, selectedZone, onClose, onSucc
               </span>
             </div>
             <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-              Use @ for root domain, or enter a subdomain like "www" or "blog"
+              Use @ for root domain, or enter a subdomain like &quot;www&quot; or &quot;blog&quot;
             </p>
           </div>
 
@@ -303,7 +303,7 @@ export default function AddDnsRecordModal({ zones, selectedZone, onClose, onSucc
                   <span>🟠 Proxy through Cloudflare</span>
                 </label>
                 <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-                  Enable Cloudflare's CDN, DDoS protection, and SSL (orange cloud)
+                  Enable Cloudflare&apos;s CDN, DDoS protection, and SSL (orange cloud)
                 </p>
               </div>
             </div>

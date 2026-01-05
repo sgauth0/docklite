@@ -9,7 +9,7 @@ export async function PUT(
 ) {
   try {
     const session = await getSession();
-    if (!session) {
+    if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -24,7 +24,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     }
 
-    if (folder.user_id !== session.userId && !session.isAdmin) {
+    if (folder.user_id !== session.user.userId && !session.user.isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -45,7 +45,7 @@ export async function PUT(
     }
 
     // Validate nesting
-    const allFolders = getFoldersByUser(session.userId);
+    const allFolders = getFoldersByUser(session.user.userId);
     const validation = canNestFolder(folderId, parentId, allFolders);
 
     if (!validation.valid) {

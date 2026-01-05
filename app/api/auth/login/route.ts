@@ -41,10 +41,30 @@ function clearAttempts(key: string): void {
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, password } = await request.json();
+    console.log('[LOGIN] Request received');
+    const contentType = request.headers.get('content-type') || '';
+    let username: string | null | undefined;
+    let password: string | null | undefined;
+
+    const expectsJson = contentType.includes('application/json');
+    if (expectsJson) {
+      const body = await request.json();
+      username = body?.username;
+      password = body?.password;
+    } else {
+      const form = await request.formData();
+      username = form.get('username')?.toString();
+      password = form.get('password')?.toString();
+    }
+    console.log('[LOGIN] Username:', username);
+    const wantsHtml = request.headers.get('accept')?.includes('text/html');
+    const shouldRedirect = !!wantsHtml && !expectsJson;
+    const redirectToLogin = () => NextResponse.redirect(new URL('/login', request.url), 303);
 
     // Validate input
     if (!username || !password) {
+      console.log('[LOGIN] Missing credentials');
+      if (shouldRedirect) return redirectToLogin();
       return NextResponse.json(
         { error: 'Username and password are required' },
         { status: 400 }
@@ -53,6 +73,7 @@ export async function POST(request: NextRequest) {
 
     const rateLimitKey = getClientKey(request, username);
     if (isRateLimited(rateLimitKey)) {
+      if (shouldRedirect) return redirectToLogin();
       return NextResponse.json(
         { error: 'Too many login attempts. Please try again later.' },
         { status: 429 }
@@ -60,25 +81,34 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user from database
+    console.log('[LOGIN] Looking up user:', username);
     const user = getUser(username);
     if (!user) {
+      console.log('[LOGIN] User not found:', username);
       recordAttempt(rateLimitKey);
+      if (shouldRedirect) return redirectToLogin();
       return NextResponse.json(
         { error: 'Invalid username or password' },
         { status: 401 }
       );
     }
+    console.log('[LOGIN] User found:', user.username, 'role:', user.role);
 
     // Verify password
+    console.log('[LOGIN] Verifying password');
     if (!verifyPassword(user, password)) {
+      console.log('[LOGIN] Password verification failed');
       recordAttempt(rateLimitKey);
+      if (shouldRedirect) return redirectToLogin();
       return NextResponse.json(
         { error: 'Invalid username or password' },
         { status: 401 }
       );
     }
+    console.log('[LOGIN] Password verified successfully');
 
     // Create session
+    console.log('[LOGIN] Creating session');
     const session = await getSession();
     session.user = {
       userId: user.id,
@@ -86,8 +116,14 @@ export async function POST(request: NextRequest) {
       isAdmin: user.is_admin === 1,
       role: user.role || (user.is_admin === 1 ? 'admin' : 'user'), // Fallback for migrated data
     };
+    console.log('[LOGIN] Saving session');
     await session.save();
     clearAttempts(rateLimitKey);
+    console.log('[LOGIN] Login successful for:', username);
+
+    if (shouldRedirect) {
+      return NextResponse.redirect(new URL('/', request.url), 303);
+    }
 
     return NextResponse.json({
       success: true,

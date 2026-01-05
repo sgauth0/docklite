@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getContainerById, getContainerStats, removeContainer } from '@/lib/docker';
-import { getSiteByContainerId } from '@/lib/db';
+import { deleteSite, getSiteByContainerId, unlinkContainerFromAllFolders } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,15 +60,27 @@ export async function DELETE(
     // Only admins can delete any container
     // Regular users can only delete their own site containers
     const site = getSiteByContainerId(id);
-    if (!user.isAdmin && (!site || site.user_id !== user.userId)) {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
-      );
+    if (!user.isAdmin) {
+      if (site) {
+        if (site.user_id !== user.userId) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+      } else {
+        const container = await getContainerById(id);
+        const labelUserId = container?.labels?.['docklite.user.id'];
+        if (!labelUserId || labelUserId !== String(user.userId)) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+      }
     }
 
     // Remove the container (force=true to remove even if running)
     await removeContainer(id, true);
+
+    if (site) {
+      deleteSite(site.id);
+    }
+    unlinkContainerFromAllFolders(id);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

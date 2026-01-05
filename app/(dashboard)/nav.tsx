@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import { UserSession } from '@/types';
-import { Lightning, Sparkle, Flower, Database, Gear, Users, Server, SignOut, Package, HardDrives, Globe } from '@phosphor-icons/react';
+import { Lightning, Sparkle, Database, Package, HardDrives, Globe, Gear } from '@phosphor-icons/react';
 
 export default function DashboardNav({ user }: { user: UserSession }) {
   const router = useRouter();
@@ -69,22 +69,34 @@ export default function DashboardNav({ user }: { user: UserSession }) {
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center flex-1">
               <div className="flex-shrink-0 flex items-center gap-2 group">
-                <Lightning size={32} weight="duotone" color="#00e863" className="group-hover:scale-110 transition-transform" />
-                <h1 className="text-3xl font-bold neon-text group-hover:scale-105 transition-transform" style={{ color: 'var(--neon-cyan)' }}>
+                <Lightning
+                  size={34}
+                  weight="duotone"
+                  color="#00e863"
+                  className="group-hover:scale-110 transition-transform"
+                  style={{ filter: 'drop-shadow(0 0 6px rgba(79, 214, 255, 0.6))' }}
+                />
+                <h1 className="text-4xl font-bold neon-text group-hover:scale-105 transition-transform" style={{ color: 'var(--neon-cyan)' }}>
                   DockLite
                 </h1>
-                <Sparkle size={24} weight="duotone" color="#d90fd9" className="opacity-70 group-hover:opacity-100 transition-opacity" />
+                <Sparkle
+                  size={24}
+                  weight="duotone"
+                  color="#d90fd9"
+                  className="opacity-70 group-hover:opacity-100 transition-opacity"
+                  style={{ filter: 'drop-shadow(0 0 6px rgba(255, 107, 214, 0.6))' }}
+                />
               </div>
               <div className="hidden sm:ml-8 sm:flex sm:space-x-2">
               <Link
                 href="/"
-                className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all relative overflow-hidden ${
+                className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-[15px] font-bold transition-all relative overflow-hidden ${
                   isActive('/')
                     ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-gray-900 neon-glow shadow-lg'
                     : 'text-cyan-300 hover:text-cyan-100 hover:bg-purple-900/30 hover:shadow-md'
                 }`}
               >
-                <Package size={20} weight="duotone" />
+                <Package size={20} weight="duotone" style={{ filter: 'drop-shadow(0 0 6px rgba(79, 214, 255, 0.4))' }} />
                 <span>Containers</span>
                 {isActive('/') && (
                   <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 to-purple-400/20 animate-pulse rounded-xl"></div>
@@ -92,13 +104,13 @@ export default function DashboardNav({ user }: { user: UserSession }) {
               </Link>
               <Link
                 href="/databases"
-                className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all relative overflow-hidden ${
+                className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-[15px] font-bold transition-all relative overflow-hidden ${
                   isActive('/databases')
                     ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-gray-900 neon-glow shadow-lg'
                     : 'text-cyan-300 hover:text-cyan-100 hover:bg-purple-900/30 hover:shadow-md'
                 }`}
               >
-                <Database size={20} weight="duotone" />
+                <Database size={20} weight="duotone" style={{ filter: 'drop-shadow(0 0 6px rgba(123, 92, 255, 0.4))' }} />
                 <span>Databases</span>
                 {isActive('/databases') && (
                   <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 to-purple-400/20 animate-pulse rounded-xl"></div>
@@ -106,13 +118,13 @@ export default function DashboardNav({ user }: { user: UserSession }) {
               </Link>
               <Link
                 href="/backups"
-                className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all relative overflow-hidden ${
+                className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-[15px] font-bold transition-all relative overflow-hidden ${
                   isActive('/backups')
                     ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-gray-900 neon-glow shadow-lg'
                     : 'text-cyan-300 hover:text-cyan-100 hover:bg-purple-900/30 hover:shadow-md'
                 }`}
               >
-                <HardDrives size={20} weight="duotone" />
+                <HardDrives size={20} weight="duotone" style={{ filter: 'drop-shadow(0 0 6px rgba(107, 255, 176, 0.35))' }} />
                 <span>Backups</span>
                 {isActive('/backups') && (
                   <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 to-purple-400/20 animate-pulse rounded-xl"></div>
@@ -120,13 +132,13 @@ export default function DashboardNav({ user }: { user: UserSession }) {
               </Link>
               <Link
                 href="/dns"
-                className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all relative overflow-hidden ${
+                className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-[15px] font-bold transition-all relative overflow-hidden ${
                   isActive('/dns')
                     ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-gray-900 neon-glow shadow-lg'
                     : 'text-cyan-300 hover:text-cyan-100 hover:bg-purple-900/30 hover:shadow-md'
                 }`}
               >
-                <Globe size={20} weight="duotone" />
+                <Globe size={20} weight="duotone" style={{ filter: 'drop-shadow(0 0 6px rgba(79, 214, 255, 0.4))' }} />
                 <span>DNS</span>
                 {isActive('/dns') && (
                   <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 to-purple-400/20 animate-pulse rounded-xl"></div>
@@ -134,13 +146,13 @@ export default function DashboardNav({ user }: { user: UserSession }) {
               </Link>
               <Link
                 href="/server"
-                className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all relative overflow-hidden ${
+                className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-[15px] font-bold transition-all relative overflow-hidden ${
                   isActive('/server')
                     ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-gray-900 neon-glow shadow-lg'
                     : 'text-cyan-300 hover:text-cyan-100 hover:bg-purple-900/30 hover:shadow-md'
                 }`}
               >
-                <span className="text-lg">🖥️</span>
+                <Gear size={20} weight="duotone" style={{ filter: 'drop-shadow(0 0 6px rgba(123, 92, 255, 0.4))' }} />
                 <span>Server</span>
                 {isActive('/server') && (
                   <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 to-purple-400/20 animate-pulse rounded-xl"></div>
