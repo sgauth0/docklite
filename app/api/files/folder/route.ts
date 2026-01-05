@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import path from 'path';
-
-const execAsync = promisify(exec);
+import { DocklitePathError, ensureUserPathAccess, resolveDocklitePath } from '@/lib/path-helpers';
+import fs from 'fs/promises';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,34 +21,18 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 });
     }
 
-    const resolvedPath = path.resolve(folderPath);
+    const { resolvedPath, baseDir } = await resolveDocklitePath(folderPath, { mustExist: true });
+    await ensureUserPathAccess(resolvedPath, baseDir, user.username, userSession.isAdmin);
 
-    // Security check: Ensure the path is within /var/www/sites
-    if (!resolvedPath.startsWith('/var/www/sites')) {
-      return NextResponse.json(
-        { error: 'Forbidden: Access outside allowed directory' },
-        { status: 403 }
-      );
-    }
-
-    // For non-admin users, restrict to their own directory
-    if (!userSession.isAdmin) {
-      const userPath = `/var/www/sites/${user.username}`;
-      if (!resolvedPath.startsWith(userPath)) {
-        return NextResponse.json(
-          { error: 'Forbidden: You can only delete your own sites' },
-          { status: 403 }
-        );
-      }
-    }
-
-    // Use rm -rf to delete the entire directory
-    await execAsync(`rm -rf "${resolvedPath}"`);
+    await fs.rm(resolvedPath, { recursive: true, force: true });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (error instanceof DocklitePathError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
     console.error('Error deleting folder:', error);
     return NextResponse.json(

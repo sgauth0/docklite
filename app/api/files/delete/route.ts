@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
+import { DocklitePathError, resolveDocklitePath } from '@/lib/path-helpers';
 import fs from 'fs/promises';
-import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,11 +23,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 });
     }
 
-    const resolvedPath = path.resolve(targetPath);
-
-    if (!resolvedPath.startsWith('/var/www/sites')) {
-      return NextResponse.json({ error: 'Forbidden: Access outside allowed directory' }, { status: 403 });
-    }
+    const { resolvedPath } = await resolveDocklitePath(targetPath, { mustExist: true });
 
     const stats = await fs.stat(resolvedPath).catch(() => null);
     if (!stats) {
@@ -40,6 +36,9 @@ export async function DELETE(request: Request) {
   } catch (error: any) {
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (error instanceof DocklitePathError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
     console.error('Error deleting path:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
