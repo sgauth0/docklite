@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
+import { DocklitePathError, ensureUserPathAccess, resolveDocklitePath } from '@/lib/path-helpers';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -71,57 +72,56 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
-    const resolvedSource = path.resolve(sourcePath);
-    const resolvedTargetDir = path.resolve(targetDir);
-
-    if (!resolvedSource.startsWith('/var/www/sites') || !resolvedTargetDir.startsWith('/var/www/sites')) {
-      return NextResponse.json({ error: 'Forbidden: Access outside allowed directory' }, { status: 403 });
-    }
-
     const user = getUserById(userSession.userId);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (!userSession.isAdmin) {
-      const userPath = `/var/www/sites/${user.username}`;
-      if (!resolvedSource.startsWith(userPath) || !resolvedTargetDir.startsWith(userPath)) {
-        return NextResponse.json({ error: 'Forbidden: You can only manage files within your own directory' }, { status: 403 });
-      }
+    const sourceResolution = await resolveDocklitePath(sourcePath, { mustExist: true });
+    const targetResolution = await resolveDocklitePath(targetDir, { mustExist: true });
+
+    if (sourceResolution.baseDir !== targetResolution.baseDir) {
+      return NextResponse.json({ error: 'Forbidden: Cross-base transfers are not allowed' }, { status: 403 });
     }
 
-    const sourceStat = await fs.stat(resolvedSource).catch(() => null);
+    await ensureUserPathAccess(sourceResolution.resolvedPath, sourceResolution.baseDir, user.username, userSession.isAdmin);
+    await ensureUserPathAccess(targetResolution.resolvedPath, targetResolution.baseDir, user.username, userSession.isAdmin);
+
+    const sourceStat = await fs.stat(sourceResolution.resolvedPath).catch(() => null);
     if (!sourceStat) {
       return NextResponse.json({ error: 'Source not found' }, { status: 404 });
     }
 
-    const targetDirStat = await fs.stat(resolvedTargetDir).catch(() => null);
+    const targetDirStat = await fs.stat(targetResolution.resolvedPath).catch(() => null);
     if (!targetDirStat || !targetDirStat.isDirectory()) {
       return NextResponse.json({ error: 'Target directory not found' }, { status: 404 });
     }
 
-    const baseName = path.basename(resolvedSource);
-    const targetCandidate = path.join(resolvedTargetDir, baseName);
+    const baseName = path.basename(sourceResolution.resolvedPath);
+    const targetCandidate = path.join(targetResolution.resolvedPath, baseName);
 
-    if (resolvedSource === targetCandidate) {
-      return NextResponse.json({ success: true, targetPath: resolvedSource });
+    if (sourceResolution.resolvedPath === targetCandidate) {
+      return NextResponse.json({ success: true, targetPath: sourceResolution.resolvedPath });
     }
 
     let targetPath = targetCandidate;
     if (await pathExists(targetCandidate)) {
-      targetPath = await buildUniquePath(resolvedTargetDir, baseName);
+      targetPath = await buildUniquePath(targetResolution.resolvedPath, baseName);
     }
 
     if (action === 'copy') {
-      await copyRecursive(resolvedSource, targetPath);
+      await copyRecursive(sourceResolution.resolvedPath, targetPath);
     } else {
-      await movePath(resolvedSource, targetPath);
+      await movePath(sourceResolution.resolvedPath, targetPath);
     }
 
     return NextResponse.json({ success: true, targetPath });
   } catch (error: any) {
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (error instanceof DocklitePathError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
     console.error('Error transferring file:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

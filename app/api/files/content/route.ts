@@ -2,24 +2,8 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
+import { DocklitePathError, ensureUserPathAccess, resolveDocklitePath } from '@/lib/path-helpers';
 import fs from 'fs/promises';
-import path from 'path';
-
-function checkUserPathAccess(resolvedPath: string, username: string, isAdmin: boolean): boolean {
-  // Security check: Ensure the path is within /var/www/sites
-  if (!resolvedPath.startsWith('/var/www/sites')) {
-    return false;
-  }
-
-  // Admins can access all of /var/www/sites
-  if (isAdmin) {
-    return true;
-  }
-
-  // Non-admin users can only access /var/www/sites/{username}
-  const userPath = `/var/www/sites/${username}`;
-  return resolvedPath.startsWith(userPath);
-}
 
 export async function GET(request: Request) {
   try {
@@ -31,22 +15,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'File path is required' }, { status: 400 });
     }
 
-    const resolvedPath = path.resolve(filePath);
-
     // Get user info for permission check
     const user = getUserById(userSession.userId);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Check if user has access to this path
-    if (!checkUserPathAccess(resolvedPath, user.username, userSession.isAdmin)) {
-      return NextResponse.json({
-        error: userSession.isAdmin
-          ? 'Forbidden: Access outside allowed directory'
-          : 'Forbidden: You can only access your own sites'
-      }, { status: 403 });
-    }
+    const { resolvedPath, baseDir } = await resolveDocklitePath(filePath, { mustExist: true });
+    await ensureUserPathAccess(resolvedPath, baseDir, user.username, userSession.isAdmin);
 
     const content = await fs.readFile(resolvedPath, 'utf-8');
 
@@ -54,6 +30,9 @@ export async function GET(request: Request) {
   } catch (error: any) {
     if (error.code === 'ENOENT') {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    }
+    if (error instanceof DocklitePathError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -72,22 +51,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'File path and content are required' }, { status: 400 });
     }
 
-    const resolvedPath = path.resolve(filePath);
-
     // Get user info for permission check
     const user = getUserById(userSession.userId);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Check if user has access to this path
-    if (!checkUserPathAccess(resolvedPath, user.username, userSession.isAdmin)) {
-      return NextResponse.json({
-        error: userSession.isAdmin
-          ? 'Forbidden: Access outside allowed directory'
-          : 'Forbidden: You can only access your own sites'
-      }, { status: 403 });
-    }
+    const { resolvedPath, baseDir } = await resolveDocklitePath(filePath, { mustExist: false });
+    await ensureUserPathAccess(resolvedPath, baseDir, user.username, userSession.isAdmin);
 
     await fs.writeFile(resolvedPath, content, 'utf-8');
 
@@ -95,6 +66,9 @@ export async function POST(request: Request) {
   } catch (error: any) {
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (error instanceof DocklitePathError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
     console.error('Error writing file:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
