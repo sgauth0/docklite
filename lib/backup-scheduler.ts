@@ -1,8 +1,10 @@
 import cron from 'node-cron';
 import fs from 'fs/promises';
 import path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
+import { createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
+import { createGzip } from 'zlib';
 import {
   getEnabledBackupJobs,
   getBackupJobById,
@@ -17,7 +19,19 @@ import {
 } from './db';
 import type { BackupJob, BackupDestination, BackupDestinationConfig } from '@/types';
 
-const execAsync = promisify(exec);
+function spawnCommand(command: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: 'inherit' });
+    child.on('error', (error) => reject(error));
+    child.on('close', (code) => {
+      if (code && code !== 0) {
+        reject(new Error(`${command} exited with code ${code}`));
+        return;
+      }
+      resolve();
+    });
+  });
+}
 
 // Parse frequency string to determine if job should run
 function shouldRunJob(job: BackupJob): boolean {
@@ -108,8 +122,13 @@ async function backupSite(siteId: number, destinationPath: string): Promise<{ pa
   await ensureBackupDir(destinationPath);
 
   // Create tar.gz of the site directory
-  const command = `tar -czf "${backupPath}" -C "${path.dirname(site.code_path)}" "${path.basename(site.code_path)}"`;
-  await execAsync(command);
+  await spawnCommand('tar', [
+    '-czf',
+    backupPath,
+    '-C',
+    path.dirname(site.code_path),
+    path.basename(site.code_path),
+  ]);
 
   // Get file size
   const stats = await fs.stat(backupPath);
@@ -133,8 +152,37 @@ async function backupDatabase(dbId: number, destinationPath: string): Promise<{ 
   await ensureBackupDir(destinationPath);
 
   // pg_dump the database
-  const command = `docker exec ${database.container_id} pg_dump -U docklite ${database.name} | gzip > "${backupPath}"`;
-  await execAsync(command);
+  await new Promise<void>((resolve, reject) => {
+    const dump = spawn('docker', [
+      'exec',
+      database.container_id,
+      'pg_dump',
+      '-U',
+      'docklite',
+      database.name,
+    ]);
+    const gzip = createGzip();
+    const output = createWriteStream(backupPath);
+
+    dump.on('error', reject);
+    output.on('error', reject);
+
+    const exitPromise = new Promise<void>((resolveExit, rejectExit) => {
+      dump.on('close', (code) => {
+        if (code && code !== 0) {
+          rejectExit(new Error(`pg_dump exited with code ${code}`));
+          return;
+        }
+        resolveExit();
+      });
+    });
+
+    const pipelinePromise = pipeline(dump.stdout, gzip, output);
+
+    Promise.all([exitPromise, pipelinePromise])
+      .then(() => resolve())
+      .catch(reject);
+  });
 
   // Get file size
   const stats = await fs.stat(backupPath);

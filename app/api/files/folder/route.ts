@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import path from 'path';
-
-const execAsync = promisify(exec);
+import fs from 'fs/promises';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,8 +42,7 @@ export async function DELETE(request: Request) {
       }
     }
 
-    // Use rm -rf to delete the entire directory
-    await execAsync(`rm -rf "${resolvedPath}"`);
+    await fs.rm(resolvedPath, { recursive: true, force: true });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
