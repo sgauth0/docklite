@@ -5,20 +5,10 @@ import { ContainerInfo, FolderNode } from '@/types';
 import ContainerCard from './ContainerCard';
 import { Folder as FolderIcon, FolderOpen, Pencil, Trash, Plus } from '@phosphor-icons/react';
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
-  sortableKeyboardCoordinates,
   rectSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
@@ -33,8 +23,8 @@ interface FolderSectionProps {
   onAssign?: (containerId: string, containerName: string) => void;
   canAssign?: boolean;
   onRefresh: () => void;
-  onContainerDrop: (containerId: string, targetFolderId: number) => void;
-  onContainerReorder?: (folderId: number, containerId: string, newPosition: number) => Promise<void>;
+  onMoveFolder?: (containerId: string, containerName: string) => void;
+  onToggleTracking?: (containerId: string, tracked: boolean) => void;
   onAddSubfolder?: (parentId: number, parentName: string) => void;
   onDeleteFolder?: (folderId: number, folderName: string) => void;
 }
@@ -42,20 +32,26 @@ interface FolderSectionProps {
 // Sortable container wrapper component
 function SortableContainer({
   container,
+  folderId,
   badge,
   onAction,
   onViewDetails,
   onDelete,
   onAssign,
   canAssign,
+  onMoveFolder,
+  onToggleTracking,
 }: {
   container: ContainerInfo;
+  folderId: number;
   badge: ReactNode;
   onAction: (containerId: string, action: 'start' | 'stop' | 'restart') => void;
   onViewDetails: (id: string, name: string) => void;
   onDelete?: (containerId: string, containerName: string) => void;
   onAssign?: (containerId: string, containerName: string) => void;
   canAssign?: boolean;
+  onMoveFolder?: (containerId: string, containerName: string) => void;
+  onToggleTracking?: (containerId: string, tracked: boolean) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const {
@@ -65,7 +61,7 @@ function SortableContainer({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: container.id, disabled: menuOpen });
+  } = useSortable({ id: container.id, data: { folderId }, disabled: menuOpen });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -91,6 +87,8 @@ function SortableContainer({
           onDelete={onDelete}
           onAssign={onAssign}
           canAssign={canAssign}
+          onMoveFolder={onMoveFolder}
+          onToggleTracking={onToggleTracking}
           onMenuOpenChange={setMenuOpen}
         />
       </div>
@@ -107,14 +105,13 @@ export default function FolderSection({
   onAssign,
   canAssign,
   onRefresh,
-  onContainerDrop,
-  onContainerReorder,
+  onMoveFolder,
+  onToggleTracking,
   onAddSubfolder,
   onDeleteFolder,
 }: FolderSectionProps) {
   const { children, containers, ...folder } = folderNode;
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
   const [localContainers, setLocalContainers] = useState(containers);
 
   // Update local state when props change
@@ -125,51 +122,9 @@ export default function FolderSection({
   // Calculate indentation based on folder depth
   const indentPixels = folder.depth * 24;
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
-  };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (!over || active.id === over.id) {
-      return;
-    }
-
-    const oldIndex = localContainers.findIndex(c => c.id === active.id);
-    const newIndex = localContainers.findIndex(c => c.id === over.id);
-
-    if (oldIndex === -1 || newIndex === -1) {
-      return;
-    }
-
-    // Optimistically update UI
-    const newContainers = arrayMove(localContainers, oldIndex, newIndex);
-    setLocalContainers(newContainers);
-
-    // Call API to persist the change
-    if (onContainerReorder) {
-      try {
-        await onContainerReorder(folder.id, active.id as string, newIndex);
-      } catch (error) {
-        // Revert on error
-        setLocalContainers(containers);
-        console.error('Failed to reorder:', error);
-      }
-    }
-  };
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: `folder-${folder.id}`,
+  });
 
   return (
     <div className="space-y-4" style={{ marginLeft: `${indentPixels}px` }}>
@@ -247,33 +202,34 @@ export default function FolderSection({
 
       {/* Containers Grid with DnD */}
       {!isCollapsed && (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={localContainers.map(c => c.id)} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 p-4 rounded-xl border-2 border-transparent">
-              {localContainers.map((container) => {
-                const badge = getContainerBadge(container);
+        <SortableContext items={localContainers.map(c => c.id)} strategy={rectSortingStrategy}>
+          <div
+            ref={setDroppableRef}
+            className={`grid min-h-[120px] grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 p-4 rounded-xl border-2 ${
+              isOver ? 'drag-over' : 'border-transparent'
+            }`}
+          >
+            {localContainers.map((container) => {
+              const badge = getContainerBadge(container);
 
-                return (
-                  <SortableContainer
-                    key={container.id}
-                    container={container}
-                    badge={badge}
-                    onAction={onAction}
-                    onViewDetails={onViewDetails}
-                    onDelete={onDelete}
-                    onAssign={onAssign}
-                    canAssign={canAssign}
-                  />
-                );
-              })}
-            </div>
-          </SortableContext>
-        </DndContext>
+              return (
+                <SortableContainer
+                  key={container.id}
+                  container={container}
+                  folderId={folder.id}
+                  badge={badge}
+                  onAction={onAction}
+                  onViewDetails={onViewDetails}
+                  onDelete={onDelete}
+                  onAssign={onAssign}
+                  canAssign={canAssign}
+                  onMoveFolder={onMoveFolder}
+                  onToggleTracking={onToggleTracking}
+                />
+              );
+            })}
+          </div>
+        </SortableContext>
       )}
 
       {/* Empty State */}
@@ -294,9 +250,11 @@ export default function FolderSection({
               onAction={onAction}
               onViewDetails={onViewDetails}
               onDelete={onDelete}
+              onAssign={onAssign}
+              canAssign={canAssign}
               onRefresh={onRefresh}
-              onContainerDrop={onContainerDrop}
-              onContainerReorder={onContainerReorder}
+              onMoveFolder={onMoveFolder}
+              onToggleTracking={onToggleTracking}
               onAddSubfolder={onAddSubfolder}
             />
           ))}

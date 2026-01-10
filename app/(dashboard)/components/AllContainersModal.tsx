@@ -12,6 +12,7 @@ interface DockerContainer {
   status: string;
   created: string;
   labels: Record<string, string>;
+  tracked?: boolean;
 }
 
 interface AllContainersModalProps {
@@ -58,6 +59,23 @@ export default function AllContainersModal({ onClose }: AllContainersModalProps)
         toast.success(`Container ${action}ed successfully!`);
       }
       fetchAllContainers(); // Refresh list
+    } catch (err: any) {
+      toast.error(`Error: ${err.message}`);
+    }
+  };
+
+  const handleTracking = async (containerId: string, tracked: boolean) => {
+    try {
+      const endpoint = tracked ? 'untrack' : 'track';
+      const res = await fetch(`/api/containers/${containerId}/${endpoint}`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to ${endpoint} container`);
+      }
+      toast.success(tracked ? 'Container untracked' : 'Container tracked');
+      fetchAllContainers();
     } catch (err: any) {
       toast.error(`Error: ${err.message}`);
     }
@@ -142,6 +160,7 @@ export default function AllContainersModal({ onClose }: AllContainersModalProps)
               {containers.map(container => {
                 const isRunning = container.state === 'running';
                 const isManaged = isDockliteManaged(container);
+                const isTracked = container.tracked !== false;
 
                 return (
                   <div
@@ -191,6 +210,20 @@ export default function AllContainersModal({ onClose }: AllContainersModalProps)
                       </div>
 
                       <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleTracking(container.id, isTracked)}
+                          className="px-3 py-2 rounded-lg text-sm font-bold transition-all hover:scale-105"
+                          style={{
+                            background: isTracked
+                              ? 'rgba(255, 107, 107, 0.2)'
+                              : 'rgba(57, 255, 20, 0.2)',
+                            border: `1px solid ${isTracked ? '#ff6b6b' : 'var(--neon-green)'}`,
+                            color: isTracked ? '#ff6b6b' : 'var(--neon-green)',
+                          }}
+                          title={isTracked ? 'Untrack container' : 'Track container'}
+                        >
+                          {isTracked ? '👁️‍🗨️' : '👁️'}
+                        </button>
                         {!isRunning ? (
                           <button
                             onClick={() => handleAction(container.id, 'start')}

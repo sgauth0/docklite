@@ -18,6 +18,7 @@ import * as migration009 from './009_add_container_positions';
 import * as migration010 from './010_add_nested_folders';
 import * as migration011 from './011_promote_admin_super_admin';
 import * as migration012 from './012_rename_admin_user';
+import * as migration013 from './013_add_container_tracking';
 
 const allMigrations: Migration[] = [
   migration001,
@@ -32,6 +33,7 @@ const allMigrations: Migration[] = [
   migration010,
   migration011,
   migration012,
+  migration013,
 ];
 
 function ensureMigrationsTable(db: Database.Database): void {
@@ -91,7 +93,7 @@ export function runMigrations(db: Database.Database, dbPath?: string): void {
 
       const checksum = calculateChecksum(migration);
       db.prepare(`
-        INSERT INTO migrations (version, name, checksum)
+        INSERT OR IGNORE INTO migrations (version, name, checksum)
         VALUES (?, ?, ?)
       `).run(migration.version, migration.name, checksum);
     });

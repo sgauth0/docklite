@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ContainerInfo, FolderNode } from '@/types';
 import ContainerDetailsModal from './components/ContainerDetailsModal';
@@ -12,6 +12,16 @@ import SslStatus from './components/SslStatus';
 import { useToast } from '@/lib/hooks/useToast';
 import { Flower, Database, Lightning, Package, ArrowsClockwise, FolderPlus, PlusCircle } from '@phosphor-icons/react';
 import AddContainerModal from './components/AddContainerModal';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 
 type ContainerType = 'all' | 'sites' | 'databases' | 'other';
 
@@ -32,6 +42,9 @@ export default function DashboardPage() {
   const [assignUserId, setAssignUserId] = useState<string>('');
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState('');
+  const [moveTarget, setMoveTarget] = useState<{ id: string; name: string } | null>(null);
+  const [moveFolderId, setMoveFolderId] = useState<string>('');
+  const [moveError, setMoveError] = useState('');
   const toast = useToast();
 
   const fetchData = async () => {
@@ -65,6 +78,15 @@ export default function DashboardPage() {
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const handleAction = async (containerId: string, action: 'start' | 'stop' | 'restart') => {
     try {
@@ -155,6 +177,23 @@ export default function DashboardPage() {
     }
   };
 
+  const handleToggleTracking = async (containerId: string, tracked: boolean) => {
+    try {
+      const endpoint = tracked ? 'untrack' : 'track';
+      const res = await fetch(`/api/containers/${containerId}/${endpoint}`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to ${endpoint} container`);
+      }
+      toast.success(tracked ? 'Container untracked' : 'Container tracked');
+      fetchData();
+    } catch (err: any) {
+      toast.error(`Error: ${err.message || err}`);
+    }
+  };
+
   const getContainerType = (container: ContainerInfo): 'site' | 'database' | 'other' => {
     const labels = container.labels || {};
     if (labels['docklite.type'] === 'static' || labels['docklite.type'] === 'php' || labels['docklite.type'] === 'node') {
@@ -213,6 +252,159 @@ export default function DashboardPage() {
 
   const totalContainers = countContainers(foldersData);
   const filteredFolders = filterFolderTree(foldersData);
+
+  const flattenedFolders = useMemo(() => {
+    const result: Array<{ id: number; name: string; depth: number }> = [];
+    const walk = (nodes: FolderNode[]) => {
+      for (const node of nodes) {
+        result.push({ id: node.id, name: node.name, depth: node.depth });
+        if (node.children?.length) walk(node.children);
+      }
+    };
+    walk(foldersData);
+    return result;
+  }, [foldersData]);
+
+  type ContainerLocation = { folderId: number; index: number; container: ContainerInfo };
+
+  const findContainerLocation = (nodes: FolderNode[], containerId: string): ContainerLocation | null => {
+    for (const node of nodes) {
+      const index = node.containers.findIndex(container => container.id === containerId);
+      if (index !== -1) {
+        return { folderId: node.id, index, container: node.containers[index] };
+      }
+      if (node.children?.length) {
+        const childResult = findContainerLocation(node.children, containerId);
+        if (childResult) return childResult;
+      }
+    }
+    return null;
+  };
+
+  const findFolderNode = (nodes: FolderNode[], folderId: number): FolderNode | null => {
+    for (const node of nodes) {
+      if (node.id === folderId) return node;
+      if (node.children?.length) {
+        const found = findFolderNode(node.children, folderId);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const updateFolderTree = (
+    nodes: FolderNode[],
+    folderId: number,
+    updater: (containers: ContainerInfo[]) => ContainerInfo[]
+  ): FolderNode[] => {
+    return nodes.map(node => {
+      if (node.id === folderId) {
+        return { ...node, containers: updater(node.containers) };
+      }
+      if (node.children?.length) {
+        return { ...node, children: updateFolderTree(node.children, folderId, updater) };
+      }
+      return node;
+    });
+  };
+
+  const handleMoveSubmit = async () => {
+    if (!moveTarget) return;
+    if (!moveFolderId) {
+      setMoveError('Please select a folder.');
+      return;
+    }
+    setMoveError('');
+    try {
+      const res = await fetch(`/api/folders/${moveFolderId}/containers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ containerId: moveTarget.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to move container');
+      }
+      toast.success(`Moved ${moveTarget.name}`);
+      setMoveTarget(null);
+      setMoveFolderId('');
+      fetchData();
+    } catch (err: any) {
+      setMoveError(err.message || 'Failed to move container');
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const activeLocation = findContainerLocation(foldersData, activeId);
+    if (!activeLocation) return;
+
+    let targetFolderId = activeLocation.folderId;
+    let targetIndex = activeLocation.index;
+
+    if (overId.startsWith('folder-')) {
+      targetFolderId = Number(overId.replace('folder-', ''));
+      const targetFolderData = findFolderNode(foldersData, targetFolderId);
+      targetIndex = targetFolderData ? targetFolderData.containers.length : 0;
+    } else {
+      const overLocation = findContainerLocation(foldersData, overId);
+      if (!overLocation) return;
+      targetFolderId = overLocation.folderId;
+      targetIndex = overLocation.index;
+    }
+
+    if (activeLocation.folderId === targetFolderId) {
+      if (activeLocation.index === targetIndex) return;
+      const adjustedIndex = targetIndex > activeLocation.index ? targetIndex - 1 : targetIndex;
+      setFoldersData(prev =>
+        updateFolderTree(prev, activeLocation.folderId, containers => {
+          const next = [...containers];
+          const [moved] = next.splice(activeLocation.index, 1);
+          next.splice(adjustedIndex, 0, moved);
+          return next;
+        })
+      );
+      try {
+        await handleContainerReorder(activeLocation.folderId, activeId, adjustedIndex);
+      } catch {
+        fetchData();
+      }
+      return;
+    }
+
+    setFoldersData(prev => {
+      let moving: ContainerInfo | null = null;
+      let next = updateFolderTree(prev, activeLocation.folderId, containers => {
+        const remaining = [];
+        for (const container of containers) {
+          if (container.id === activeId) {
+            moving = container;
+          } else {
+            remaining.push(container);
+          }
+        }
+        return remaining;
+      });
+      if (!moving) return prev;
+      next = updateFolderTree(next, targetFolderId, containers => {
+        const nextContainers = [...containers];
+        nextContainers.splice(targetIndex, 0, moving!);
+        return nextContainers;
+      });
+      return next;
+    });
+
+    try {
+      await handleContainerDrop(activeId, targetFolderId);
+    } catch {
+      fetchData();
+    }
+  };
 
   const handleContainerDrop = async (containerId: string, targetFolderId: number) => {
     try {
@@ -404,28 +596,38 @@ export default function DashboardPage() {
           </button>
         </div>
       ) : (
-        <div className="space-y-8">
-          {filteredFolders.map((folderNode) => (
-            <FolderSection
-              key={folderNode.id}
-              folderNode={folderNode}
-              getContainerBadge={getContainerBadge}
-              onAction={handleAction}
-              onViewDetails={(id, name) => {
-                setSelectedContainerId(id);
-                setSelectedContainerName(name);
-              }}
-              onDelete={handleDeleteContainer}
-              onAssign={openAssignModal}
-              canAssign={Boolean(currentUser?.isAdmin)}
-              onRefresh={fetchData}
-              onContainerDrop={handleContainerDrop}
-              onContainerReorder={handleContainerReorder}
-              onAddSubfolder={handleAddSubfolder}
-              onDeleteFolder={handleDeleteFolder}
-            />
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="space-y-8">
+            {filteredFolders.map((folderNode) => (
+              <FolderSection
+                key={folderNode.id}
+                folderNode={folderNode}
+                getContainerBadge={getContainerBadge}
+                onAction={handleAction}
+                onViewDetails={(id, name) => {
+                  setSelectedContainerId(id);
+                  setSelectedContainerName(name);
+                }}
+                onDelete={handleDeleteContainer}
+                onAssign={openAssignModal}
+                canAssign={Boolean(currentUser?.isAdmin)}
+                onRefresh={fetchData}
+                onMoveFolder={(id, name) => {
+                  setMoveTarget({ id, name });
+                  setMoveFolderId('');
+                  setMoveError('');
+                }}
+                onToggleTracking={currentUser?.isAdmin ? handleToggleTracking : undefined}
+                onAddSubfolder={handleAddSubfolder}
+                onDeleteFolder={handleDeleteFolder}
+              />
+            ))}
+          </div>
+        </DndContext>
       )}
 
       {/* SSL Certificates Status */}
@@ -512,6 +714,66 @@ export default function DashboardPage() {
                 disabled={assignLoading || !assignUserId}
               >
                 {assignLoading ? 'Assigning...' : 'Assign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {moveTarget && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="cyber-card max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold neon-text-pink">
+                Move Container
+              </h2>
+              <button
+                onClick={() => setMoveTarget(null)}
+                className="text-gray-400 hover:text-neon-cyan transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+              Move <span className="font-bold" style={{ color: 'var(--neon-cyan)' }}>{moveTarget.name}</span> to a folder.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-bold mb-2 text-neon-cyan">
+                Select Folder
+              </label>
+              <select
+                value={moveFolderId}
+                onChange={(e) => setMoveFolderId(e.target.value)}
+                className="input-vapor w-full"
+              >
+                <option value="">Choose a folder...</option>
+                {flattenedFolders.map((folder) => (
+                  <option key={folder.id} value={String(folder.id)}>
+                    {`${'—'.repeat(folder.depth)} ${folder.name}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {moveError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/50">
+                <p className="text-sm text-red-400">{moveError}</p>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setMoveTarget(null)}
+                className="flex-1 px-4 py-2 rounded-lg font-bold border-2 border-gray-600 text-gray-300 hover:border-gray-500 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleMoveSubmit}
+                className="flex-1 cyber-button"
+                disabled={!moveFolderId}
+              >
+                Move
               </button>
             </div>
           </div>

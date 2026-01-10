@@ -4,7 +4,7 @@ import { ContainerInfo } from '@/types';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { Package, Clock, Plug, IdentificationCard, Eye, Trash, Play, ArrowsClockwise, Stop, DotsThree, Copy, Flower, Database, Lightning, UserCircle } from '@phosphor-icons/react';
+import { Package, Clock, Plug, IdentificationCard, Eye, Trash, Play, ArrowsClockwise, Stop, DotsThree, Copy, Flower, Database, Lightning, UserCircle, Folder } from '@phosphor-icons/react';
 import { useToast } from '@/lib/hooks/useToast';
 
 interface ContainerCardProps {
@@ -15,9 +15,23 @@ interface ContainerCardProps {
   onMenuOpenChange?: (open: boolean) => void;
   canAssign?: boolean;
   onAssign?: (containerId: string, containerName: string) => void;
+  onMoveFolder?: (containerId: string, containerName: string) => void;
+  onToggleTracking?: (containerId: string, tracked: boolean) => void;
+  isTracked?: boolean;
 }
 
-export default function ContainerCard({ container, onAction, onViewDetails, onDelete, onMenuOpenChange, canAssign, onAssign }: ContainerCardProps) {
+export default function ContainerCard({
+  container,
+  onAction,
+  onViewDetails,
+  onDelete,
+  onMenuOpenChange,
+  canAssign,
+  onAssign,
+  onMoveFolder,
+  onToggleTracking,
+  isTracked = true,
+}: ContainerCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -223,6 +237,38 @@ export default function ContainerCard({ container, onAction, onViewDetails, onDe
                 >
                   <UserCircle size={16} weight="duotone" />
                   Assign to user
+                </button>
+              )}
+              {onMoveFolder && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onMenuOpenChange?.(false);
+                    onMoveFolder(container.id, container.name);
+                  }}
+                  onPointerDown={stopDnd}
+                  className="w-full px-4 py-3 text-left text-sm font-bold transition-all hover:bg-white/5 flex items-center gap-3"
+                  style={{ color: 'var(--neon-cyan)' }}
+                >
+                  <Folder size={16} weight="duotone" />
+                  Move to folder
+                </button>
+              )}
+              {onToggleTracking && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onMenuOpenChange?.(false);
+                    onToggleTracking(container.id, isTracked);
+                  }}
+                  onPointerDown={stopDnd}
+                  className="w-full px-4 py-3 text-left text-sm font-bold transition-all hover:bg-white/5 flex items-center gap-3"
+                  style={{ color: isTracked ? '#ff6b6b' : 'var(--neon-green)' }}
+                >
+                  <Eye size={16} weight="duotone" />
+                  {isTracked ? 'Untrack' : 'Track'}
                 </button>
               )}
               {onDelete && isSite && (

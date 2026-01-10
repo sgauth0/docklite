@@ -10,10 +10,11 @@ DockLite is a minimal Docker-based hosting control panel built with Next.js 14. 
 
 ### Development
 ```bash
-npm run dev        # Start dev server on 0.0.0.0:3000
-npm run build      # Production build
-npm start          # Start production server on 0.0.0.0
-npm run lint       # Run ESLint
+npm run dev           # Start dev server on 0.0.0.0:3000
+npm run build         # Production build
+npm start             # Start production server on 0.0.0.0 (logs to server.log)
+npm run start:systemd # Start production server for systemd (logs to stdout)
+npm run lint          # Run ESLint
 ```
 
 ### Database
@@ -77,7 +78,12 @@ npm run lint       # Run ESLint
    - `lib/container-monitor.ts`: tracks container lifecycle events
    - Auto-updates site status when containers stop/start
 
-7. **Folder Organization**
+7. **Background Services** (`instrumentation.ts`)
+   - Next.js instrumentation hook runs on server startup
+   - Auto-starts backup scheduler and container monitor
+   - Only runs in Node.js runtime (skips Edge runtime)
+
+8. **Folder Organization**
    - Users can create folders (max 2 levels deep)
    - Containers can be organized into folders
    - Drag-and-drop reordering supported (position tracking)
@@ -96,12 +102,13 @@ app/
     users/             # User management (admin only)
     settings/          # System settings
     server/            # Server stats
-    components/        # Shared dashboard components
+    files/             # File browser/editor UI
+    components/        # Shared dashboard components (modals, etc.)
   api/                 # API routes (all use Next.js Route Handlers)
     auth/              # Login/logout
     containers/        # Container operations
     databases/         # Database CRUD
-    files/             # File browser/editor
+    files/             # File browser/editor API endpoints
     backups/           # Backup operations
     dns/               # DNS record management
     users/             # User CRUD
@@ -136,6 +143,17 @@ export async function GET(request: Request) {
 **User Hierarchy**: Admins track users they created via `managed_by` field
 - Used to scope user management permissions
 - Prevents admins from managing other admins' users
+
+**UI Component Patterns**: Dashboard uses a consistent modal system
+- All modals in `app/(dashboard)/components/` follow similar structure
+- Modals handle their own state and API calls
+- Common modals: `AddContainerModal`, `FileEditorModal`, `ConfirmDeleteModal`, etc.
+- Toast notifications via `Toast.tsx` component for user feedback
+
+**Drag-and-Drop**: Folder and container organization uses `@dnd-kit`
+- `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` for reordering
+- Position tracking stored in database (`position` field)
+- Used in `FolderSection.tsx` for container organization
 
 ## Environment Variables
 
@@ -174,10 +192,11 @@ Automatic backup scheduling:
 
 ## File Browser
 
-- Built-in file editor at `/files` dashboard route
-- API routes in `app/api/files/`
+- Built-in file editor at `app/(dashboard)/files/page.tsx` route
+- API endpoints in `app/api/files/` handle file operations
 - Supports browsing `/var/www/sites/{username}/` directories
-- Upload, download, edit, delete operations
+- Operations: upload, download, edit, delete, create files/folders
+- File editor modal (`FileEditorModal.tsx`) for in-browser editing
 
 ## Testing Notes
 

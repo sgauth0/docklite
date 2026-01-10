@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getContainerLogs } from '@/lib/docker';
+import { getContainerLogs } from '@/lib/agent-client';
 import { getSiteByContainerId } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';

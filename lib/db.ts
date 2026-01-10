@@ -531,6 +531,26 @@ export function moveContainerToFolder(containerId: string, targetFolderId: numbe
   transaction();
 }
 
+// ============================================
+// CONTAINER TRACKING
+// ============================================
+
+export function getUntrackedContainerIds(): string[] {
+  const rows = db.prepare('SELECT container_id FROM untracked_containers').all() as Array<{ container_id: string }>;
+  return rows.map(row => row.container_id);
+}
+
+export function markContainerUntracked(containerId: string): void {
+  db.prepare(`
+    INSERT OR IGNORE INTO untracked_containers (container_id)
+    VALUES (?)
+  `).run(containerId);
+}
+
+export function markContainerTracked(containerId: string): void {
+  db.prepare('DELETE FROM untracked_containers WHERE container_id = ?').run(containerId);
+}
+
 export function reorderContainerInFolder(folderId: number, containerId: string, newPosition: number): void {
   const transaction = db.transaction(() => {
     // Get current position

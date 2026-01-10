@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { createContainer, listContainers, pullImage, getContainerById, removeContainer } from '@/lib/docker';
+import { listContainers, getContainerById, removeContainer } from '@/lib/agent-client';
+import { createContainer, pullImage } from '@/lib/docker';
 import {
   getFoldersByUser,
   getContainersByFolder,
@@ -11,6 +12,7 @@ import {
   updateSiteStatus,
   getUserById,
   createFolder,
+  getUntrackedContainerIds,
 } from '@/lib/db';
 import { ContainerInfo, FolderNode } from '@/types';
 import { buildFolderTree } from '@/lib/folder-helpers';
@@ -34,6 +36,8 @@ export async function GET() {
 
     // Get all DockLite-managed containers
     let allContainers = await listContainers(true); // true = only managed containers
+    const untrackedSet = new Set(getUntrackedContainerIds());
+    allContainers = allContainers.filter(container => !untrackedSet.has(container.id));
 
     // Non-admins only see their own containers
     if (!user.isAdmin) {
@@ -95,7 +99,7 @@ export async function GET() {
 
     // Find unassigned containers (containers not in any folder)
     const unassignedContainers = containersWithOwners.filter(c =>
-      !assignedContainerIds.has(c.id)
+      !assignedContainerIds.has(c.id) && !untrackedSet.has(c.id)
     );
 
     // Add unassigned containers to Default folder if it exists
