@@ -76,7 +76,7 @@ export async function listContainers(managedOnly: boolean = true): Promise<Conta
   try {
     const response = await agentRequest<{ containers: any[] }>('/api/containers');
 
-    return response.containers.map(container => ({
+    const containers = response.containers.map(container => ({
       id: container.id,
       name: container.name,
       status: container.status,
@@ -86,6 +86,14 @@ export async function listContainers(managedOnly: boolean = true): Promise<Conta
       ports: container.ports || '',
       labels: container.labels || {},
     }));
+
+    if (!managedOnly) {
+      return containers;
+    }
+
+    return containers.filter(
+      (container) => container.labels?.['docklite.managed'] === 'true'
+    );
   } catch (error) {
     console.error('Error listing containers from agent:', error);
     throw new Error('Failed to list containers');
