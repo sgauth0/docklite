@@ -9,6 +9,7 @@ interface RunPsqlParams {
   password: string;
   sql: string;
   format?: 'json' | 'raw';
+  variables?: Record<string, string>;
 }
 
 export async function requireAdminDatabase(id: number) {
@@ -32,6 +33,7 @@ export async function runPsql({
   password,
   sql,
   format = 'raw',
+  variables,
 }: RunPsqlParams): Promise<string> {
   const args = [
     'exec',
@@ -47,6 +49,12 @@ export async function runPsql({
     'ON_ERROR_STOP=1',
     '-X',
   ];
+
+  if (variables) {
+    Object.entries(variables).forEach(([key, value]) => {
+      args.push('-v', `${key}=${value}`);
+    });
+  }
 
   if (format === 'json') {
     args.push('-t', '-A');

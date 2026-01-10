@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { deleteDatabase, getDatabaseById } from '@/lib/db';
 import { removeContainer } from '@/lib/docker';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { runPsql } from './db-utils';
 
 export const dynamic = 'force-dynamic';
+
+const IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 export async function PATCH(
   request: NextRequest,
@@ -23,6 +22,13 @@ export async function PATCH(
     if (!username || !password) {
       return NextResponse.json(
         { error: 'Username and password are required' },
+        { status: 400 }
+      );
+    }
+
+    if (!IDENTIFIER_PATTERN.test(username)) {
+      return NextResponse.json(
+        { error: 'Invalid username format' },
         { status: 400 }
       );
     }
@@ -47,24 +53,36 @@ export async function PATCH(
     // Update PostgreSQL user credentials in the container
     const containerId = database.container_id;
 
-    // Execute SQL commands to update the user
-    try {
-      // First, try to alter the existing user's password
-      const { stdout, stderr } = await execAsync(
-        `docker exec ${containerId} psql -U postgres -d postgres -c "ALTER USER ${username} WITH PASSWORD '${password}';"`
-      ).catch(async (alterError) => {
-        // If user doesn't exist, create it
-        await execAsync(
-          `docker exec ${containerId} psql -U postgres -d postgres -c "CREATE USER ${username} WITH PASSWORD '${password}';"`
-        );
-        // Grant all privileges on the database
-        await execAsync(
-          `docker exec ${containerId} psql -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE ${database.name} TO ${username};"`
-        );
-        return { stdout: 'User created', stderr: '' };
-      });
+    const updateSql = `
+      DO $$
+      BEGIN
+        EXECUTE format('ALTER USER %I WITH PASSWORD %L', :'username', :'password');
+      EXCEPTION
+        WHEN undefined_object THEN
+          EXECUTE format('CREATE USER %I WITH PASSWORD %L', :'username', :'password');
+      END
+      $$;
+      DO $$
+      BEGIN
+        EXECUTE format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', :'database', :'username');
+      END
+      $$;
+    `;
 
-      console.log('✓ Database credentials updated:', stdout);
+    try {
+      await runPsql({
+        containerId,
+        dbName: 'postgres',
+        username: 'postgres',
+        password: '',
+        sql: updateSql,
+        format: 'raw',
+        variables: {
+          username,
+          password,
+          database: database.name,
+        },
+      });
 
       return NextResponse.json({
         success: true,
